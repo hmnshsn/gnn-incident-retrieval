@@ -6,7 +6,7 @@ Graph Neural Networks for incident-to-incident retrieval in IT Service Managemen
 
 | Dataset             | Incidents | CIs   | Resolution Codes | Categories | Subcategories  | Text Fields                    |
 | ------------------- | --------- | ----- | ---------------- | ---------- | -------------- | ------------------------------ |
-| BPI 2014 (Rabobank) | 46,146    | 2,794 | 14               | 4          | —             | None                           |
+| BPI 2014 (Rabobank) | 46,146    | 2,794 | 14               | 4          | —              | None                           |
 | ServiceNow Internal | 59,151    | 7,140 | 25               | 36         | 154 (57% null) | short_description, description |
 
 ## Model Architecture
@@ -19,6 +19,18 @@ Graph Neural Networks for incident-to-incident retrieval in IT Service Managemen
 - Node types: incident, ci, ci_subtype, category (BPI 2014 also includes ci_type and ci_cby)
 - Edge types: bidirectional edges between incidents and their CI, category, and subtype nodes
 - No target leakage: closure codes are classification targets only, not graph nodes
+
+## File Structure
+
+- `scripts/09_encode_sn_text.py` — precompute sentence embeddings for SN incidents
+- `scripts/10_extract_sn_gnn_embeddings.py` — extract and cache GNN embeddings + split indices
+- `scripts/11_run_sn_text_retrieval.py` — text-only, GNN-only, and late fusion retrieval evaluation
+- `scripts/12_run_sn_cold_start_analysis.py` — SN seen vs unseen CI retrieval analysis
+- `scripts/13_run_sn_early_fusion.py` — early fusion ablation (tfidf/text/concat features)
+- `scripts/14_run_sn_adaptive_alpha.py` — adaptive alpha by CI visibility (negative result)
+- `scripts/15_run_bpi_cold_start_analysis.py` — BPI 2014 cold-start replication
+- `scripts/alpha_sweep.sh` — alpha sweep over late fusion weights
+- `src/text_encoder.py` — sentence embedding encoding with caching
 
 ## Baseline Methods
 
@@ -40,147 +52,113 @@ Graph Neural Networks for incident-to-incident retrieval in IT Service Managemen
 | CI-Subtype | Scores 1.0 for same CI, 0.5 for same CI subtype but different CI, 0.0 otherwise |
 | Category | Scores 1.0 if query and candidate share the same category, 0.0 otherwise |
 
-## Exp02: Closure Code Prediction
+## Exp02: Closure Code Prediction (MRR)
 
-### BPI 2014
+| Dataset | GNN | CI-Majority | Delta |
+|---------|-----|-------------|-------|
+| BPI 2014 | 0.702 | 0.686 | +0.016 |
+| SN | 0.614 | 0.578 | +0.036 |
 
-| Method          | MRR             | Hits@1          | Hits@3          | Hits@5          | Hits@10         |
-| --------------- | --------------- | --------------- | --------------- | --------------- | --------------- |
-| Random          | 0.233           | 0.071           | 0.216           | 0.362           | 0.721           |
-| Category-Match  | 0.578           | 0.363           | 0.704           | 0.872           | 1.000           |
-| Text-Similarity | 0.578           | 0.350           | 0.743           | 0.928           | 1.000           |
-| CI-Majority     | 0.686           | 0.521           | 0.805           | 0.912           | 0.987           |
-| **GNN**   | **0.702** | **0.540** | **0.821** | **0.925** | **1.000** |
+## Exp03: Incident Retrieval (nDCG@1)
 
-### ServiceNow Internal
+| Dataset | GNN | CI-Subtype | Delta |
+|---------|-----|------------|-------|
+| BPI 2014 | 0.643 | 0.570 | +0.073 |
+| SN (raw subtype) | 0.596 | 0.579 | +0.017 |
 
-| Method          | MRR             | Hits@1          | Hits@3          | Hits@5          | Hits@10         |
-| --------------- | --------------- | --------------- | --------------- | --------------- | --------------- |
-| Random          | 0.150           | 0.039           | 0.115           | 0.196           | 0.392           |
-| Category-Match  | 0.505           | 0.296           | 0.652           | 0.785           | 0.916           |
-| Text-Similarity | 0.525           | 0.338           | 0.618           | 0.795           | 0.942           |
-| CI-Majority     | 0.578           | 0.409           | 0.691           | 0.788           | 0.907           |
-| **GNN**   | **0.614** | **0.443** | **0.741** | **0.863** | **0.953** |
+## Subtype Ablation (SN, GNN only)
 
-## Exp03: Incident-to-Incident Retrieval (Graded Relevance)
+| Mode | nDCG@1 | MAP | Notes |
+|------|--------|-----|-------|
+| none | 0.572 | 0.373 | No subtype edges |
+| raw | 0.596 | 0.380 | Best top-1, preferred for ZTSD |
+| imputed | 0.583 | 0.425 | Best recall |
 
-Relevance: 3 = same CI + same resolution code, 2 = same CI, 1 = same subtype + same resolution code, 0 = otherwise.
+## Exp04: Text Signal — Late Fusion (SN)
 
-### BPI 2014
+Late fusion combines precomputed sentence embeddings (all-MiniLM-L6-v2, 384-dim) with GNN embeddings post-training. Formula: fused = alpha * norm(gnn) concat (1-alpha) * norm(text). GNN trained with early stopping (best epoch 2, patience 10).
 
-| Method        | nDCG@1          | nDCG@3          | nDCG@5          | nDCG@10         | nDCG@20         | MAP             | MRR             |
-| ------------- | --------------- | --------------- | --------------- | --------------- | --------------- | --------------- | --------------- |
-| Random        | 0.021           | 0.023           | 0.024           | 0.023           | 0.024           | 0.083           | 0.200           |
-| Category      | 0.019           | 0.021           | 0.026           | 0.027           | 0.027           | 0.100           | 0.214           |
-| CI-Match      | 0.565           | 0.603           | 0.610           | 0.622           | 0.642           | 0.360           | 0.938           |
-| CI-Subtype    | 0.570           | 0.612           | 0.623           | 0.637           | 0.661           | 0.549           | 0.953           |
-| **GNN** | **0.643** | **0.641** | **0.642** | **0.643** | **0.648** | **0.441** | **0.944** |
-
-### ServiceNow Internal
-
-| Method        | nDCG@1          | nDCG@3          | nDCG@5          | nDCG@10         | nDCG@20         | MAP             | MRR             |
-| ------------- | --------------- | --------------- | --------------- | --------------- | --------------- | --------------- | --------------- |
-| Random        | 0.022           | 0.022           | 0.022           | 0.023           | 0.024           | 0.067           | 0.177           |
-| Category      | 0.043           | 0.070           | 0.078           | 0.087           | 0.096           | 0.142           | 0.275           |
-| CI-Match      | 0.557           | 0.572           | 0.578           | 0.582           | 0.589           | 0.354           | 0.876           |
-| CI-Subtype    | 0.579           | 0.595           | 0.600           | 0.608           | 0.619           | 0.473           | 0.910           |
-| **GNN** | **0.591** | **0.591** | **0.586** | **0.583** | **0.579** | **0.380** | **0.879** |
-
-### Subtype Edge Ablation (ServiceNow)
-
-| Setting | Subtype Null Rate | GNN nDCG@1 | GNN nDCG@3 | GNN nDCG@5 | GNN nDCG@10 | GNN nDCG@20 | GNN MAP | GNN MRR |
-|---------|-------------------|------------|------------|------------|-------------|-------------|---------|---------|
-| none | 100% | 0.572 | 0.583 | 0.581 | 0.582 | 0.584 | 0.373 | 0.890 |
-| **raw** | **56.86%** | **0.596** | **0.588** | **0.586** | **0.582** | **0.579** | **0.380** | **0.879** |
-| imputed | 40.61% | 0.583 | 0.587 | 0.585 | 0.583 | 0.589 | 0.425 | 0.881 |
-
-Raw subtypes (57% null) give best top-1 ranking (nDCG@1 = 0.596). Imputation improves MAP (+0.045 over raw) at a cost to nDCG@1. No subtypes is worst at top-1. For ZTSD (where the agent picks top-1/top-3 retrieved incidents), raw subtype mode is preferred.
-
-## Exp04 — Text Signal Fusion (SN)
-
-Late fusion combines precomputed sentence embeddings (all-MiniLM-L6-v2, 384-dim) with GNN embeddings post-training. Alpha controls the weight: alpha=1.0 is GNN-only, alpha=0.0 is text-only.
-
-Alpha sweep (30 epochs, raw subtype):
+Alpha sweep:
 
 | Alpha | nDCG@1 | nDCG@5 | nDCG@10 | MAP | MRR |
-|-------|--------|--------|---------|------|------|
+|-------|--------|--------|---------|-----|-----|
 | Text-only (0.0) | 0.357 | 0.348 | 0.343 | 0.175 | 0.638 |
-| 0.5 | 0.569 | 0.551 | 0.543 | 0.344 | 0.846 |
-| 0.6 | 0.607 | 0.592 | 0.587 | 0.375 | 0.873 |
-| 0.7 | 0.625 | 0.614 | 0.607 | 0.383 | 0.884 |
-| **0.8** | **0.629** | **0.614** | **0.608** | **0.383** | **0.885** |
-| 0.85 | 0.628 | 0.613 | 0.606 | 0.382 | 0.883 |
-| 0.9 | 0.628 | 0.611 | 0.604 | 0.381 | 0.882 |
-| 0.95 | 0.624 | 0.609 | 0.602 | 0.381 | 0.880 |
-| GNN-only (1.0) | 0.594 | 0.588 | 0.582 | 0.380 | 0.879 |
+| 0.5 | 0.568 | 0.550 | 0.543 | 0.344 | 0.845 |
+| 0.6 | 0.606 | 0.592 | 0.587 | 0.375 | 0.873 |
+| 0.7 | 0.627 | 0.614 | 0.608 | 0.383 | 0.884 |
+| **0.8** | **0.631** | **0.615** | **0.608** | **0.383** | **0.885** |
+| 0.85 | 0.629 | 0.614 | 0.606 | 0.382 | 0.883 |
+| 0.9 | 0.629 | 0.612 | 0.604 | 0.381 | 0.882 |
+| 0.95 | 0.629 | 0.611 | 0.603 | 0.380 | 0.881 |
+| GNN-only (1.0) | 0.591 | 0.585 | 0.580 | 0.380 | 0.880 |
 
 Best alpha: 0.8 (80% GNN, 20% text). Text acts as a tiebreaker for top-1 retrieval.
 
-## Exp05 — Cold-Start Analysis (SN)
+## Exp05: Cold-Start Analysis (SN)
 
 Test set split by CI visibility in training: 7284 seen, 1449 unseen (16.6%).
 
 | Group | Method | nDCG@1 | MAP | MRR |
-|-------|--------|--------|------|------|
+|-------|--------|--------|-----|-----|
 | Seen | Text-only | 0.393 | 0.193 | 0.705 |
-| Seen | GNN-only | 0.657 | 0.404 | 0.962 |
-| Seen | Late fusion (0.8) | **0.690** | **0.407** | **0.967** |
+| Seen | GNN-only | 0.651 | 0.404 | 0.964 |
+| Seen | Late fusion (0.8) | **0.691** | **0.407** | **0.967** |
 | Unseen | Text-only | 0.174 | 0.086 | 0.301 |
-| Unseen | GNN-only | 0.281 | 0.259 | 0.459 |
-| Unseen | Late fusion (0.8) | **0.326** | **0.262** | **0.474** |
+| Unseen | GNN-only | 0.274 | 0.259 | 0.458 |
+| Unseen | Late fusion (0.8) | **0.327** | **0.262** | **0.475** |
 
-Cold-start degradation: GNN nDCG@1 drops 57% (0.657 to 0.281) for unseen CIs. Fusion lift is larger for unseen (+0.045) than seen (+0.033).
+Cold-start degradation: GNN nDCG@1 drops 58% (0.651 to 0.274) for unseen CIs. Fusion lift is larger for unseen (+0.053) than seen (+0.040).
 
-## Exp06 — Early Fusion Ablation (SN)
+## Exp06: Early Fusion Ablation (SN)
 
-Text embeddings as GNN input features instead of post-hoc fusion. Early stopping (patience=10).
+Text embeddings as GNN input features instead of post-hoc fusion. All runs use early stopping (patience 10).
 
 | Features | All nDCG@1 | Seen nDCG@1 | Unseen nDCG@1 | All MAP | All MRR |
 |----------|-----------|-------------|---------------|---------|---------|
 | TF-IDF (baseline) | 0.588 | 0.650 | 0.276 | 0.380 | 0.880 |
 | Sentence embeddings | 0.626 | 0.686 | 0.326 | 0.387 | 0.886 |
 | TF-IDF + sentence (concat) | 0.624 | 0.681 | **0.336** | **0.389** | **0.888** |
-| Late fusion (0.8) | **0.629** | **0.690** | 0.326 | 0.383 | 0.885 |
+| Late fusion (0.8) | **0.631** | **0.691** | 0.327 | 0.383 | 0.885 |
 
-Late fusion matches early fusion on nDCG@1. Concat wins MAP and cold-start nDCG@1.
+Late fusion wins nDCG@1. Concat wins MAP and cold-start nDCG@1. Early fusion does not outperform late fusion on the headline metric.
 
-## Key Findings
+## Exp07: Adaptive Alpha (SN) — Negative Result
 
-1. CI identity is the dominant signal for incident resolution prediction across both datasets.
-2. GNN adds value via CI type/subtype propagation — lift is larger on the richer SN dataset (+0.036 MRR) than BPI 2014 (+0.016 MRR) for closure-code prediction.
-3. For incident retrieval, GNN achieves best nDCG@1 on both datasets (best top-1 ranking quality).
-4. On SN data, GNN retrieval degrades past top positions due to 57% null subcategories limiting graph propagation. CI-Subtype baseline wins on MAP and deeper nDCG cutoffs.
-5. Cold-start gap on BPI 2014: seen CIs achieve 0.697 MRR vs unseen CIs at 0.522 MRR — this is where GNN helps most.
+Tested CI-aware alpha (alpha_seen=0.9, alpha_unseen=0.6) vs fixed alpha=0.8. No improvement. Cold-start degradation stems from signal quality, not signal weighting.
 
-## Setup
+## Exp08: BPI 2014 Cold-Start Replication
 
-```bash
-cd ~/hmnshpl/Graphs/gnn-incident-retrieval
-uv venv .venv --python 3.11
-source .venv/bin/activate
-uv pip install -e .
-```
-## Reproducing Results
+| Group | nDCG@1 | MAP | MRR |
+|-------|--------|-----|-----|
+| Seen | 0.667 | 0.463 | 0.983 |
+| Unseen | 0.339 | 0.163 | 0.411 |
+| All | 0.646 | 0.444 | 0.946 |
 
-All experiments use seed 42. BPI 2014 data is downloaded via script; ServiceNow data is not publicly available.
+Cold-start degradation consistent across datasets: nDCG@1 drops 49% on BPI 2014 vs 58% on SN.
 
-```bash
-# BPI 2014
-bash scripts/01_download_data.sh
-uv run python scripts/02_run_baselines.py
-uv run python scripts/03_run_gnn_closure_code.py
-uv run python scripts/05_run_incident_retrieval.py
+## Cross-Dataset Cold-Start Summary
 
-# ServiceNow (requires internal dataset in data/from_praison/)
-uv run python scripts/07_run_sn_exp02_closure_code.py
-uv run python scripts/08_run_sn_exp03_retrieval.py --subtype raw
-uv run python scripts/08_run_sn_exp03_retrieval.py --subtype imputed
-uv run python scripts/08_run_sn_exp03_retrieval.py --subtype none
-```
+| | BPI 2014 | ServiceNow |
+|---|---|---|
+| Seen nDCG@1 | 0.667 | 0.651 |
+| Unseen nDCG@1 | 0.339 | 0.274 |
+| Drop | -49% | -58% |
+| Unseen % of test | ~6% | 16.6% |
+| CI vocabulary | 2794 | 7140 |
+
+### Key Findings
+
+1. CI identity dominates resolution prediction across both datasets
+2. GNN adds value via subtype propagation, especially for cold-start scenarios
+3. Late fusion (alpha=0.8) provides consistent nDCG@1 improvement (+0.040 overall) with minimal complexity
+4. Cold-start degradation is the primary challenge: 49-58% nDCG@1 drop for unseen CIs across both datasets
+5. Text signal helps as a tiebreaker but is too weak standalone to solve cold-start
+6. Early fusion matches late fusion; concat features win on MAP and cold-start nDCG@1
+7. Adaptive per-group alpha shows no improvement over fixed alpha (negative result)
+8. Early stopping finds optimal model at epoch 2-3, consistent across all feature configurations
 
 ## What's next
 
-1. Adaptive alpha — binary split (seen CIs: alpha=0.9, unseen CIs: alpha=0.6) to exploit the cold-start finding
-2. Per-incident win/loss analysis — quantify what fraction of test incidents improve vs degrade under fusion
-3. Incident-to-KB retrieval — pending KB number field fix from data provider
-4. Cold-start analysis on BPI 2014 — replicate SN cold-start finding on the second dataset
+1. Per-incident win/loss analysis — quantify what fraction of test incidents improve vs degrade under fusion
+2. Incident-to-KB retrieval — pending KB number field fix from data provider (current export has empty KB number column)
+3. Paper writing — cross-dataset cold-start narrative as core contribution
