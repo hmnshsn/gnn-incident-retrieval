@@ -1,0 +1,60 @@
+[project]
+name = "gnn-incident-retrieval"
+version = "0.1.0"
+description = "GNN-based retrieval of similar past incidents over incident ontology graphs (BPI Challenge 2014)."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    # Pin torch to 2.5.1+cu124 to match the PyG compiled-extension wheels
+    # (pyg-lib / torch-scatter / torch-sparse are tagged pt25cu124).
+    "torch==2.5.1",
+    "torch-geometric",
+    "pyg-lib",
+    "torch-scatter",
+    "torch-sparse",
+    "sentence-transformers",
+    "pandas",
+    "numpy",
+    "scikit-learn",
+    "matplotlib",
+    "jupyter",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "ipykernel",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+# ---------------------------------------------------------------------------
+# Index configuration for CUDA-enabled PyTorch + PyG extensions.
+# Driver 595 supports CUDA 13.x; PyG ships wheels for cu124 (closest stable
+# combo that is broadly compatible with recent drivers via PTX JIT).
+# ---------------------------------------------------------------------------
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[[tool.uv.index]]
+name = "pyg-wheels"
+url = "https://data.pyg.org/whl/torch-2.5.1+cu124.html"
+format = "flat"
+explicit = true
+
+[tool.uv.sources]
+# torch comes from the CUDA-enabled PyTorch index.
+torch = [{ index = "pytorch-cu124" }]
+# torch-geometric is a pure-Python package and is resolved from PyPI.
+# Only the compiled extensions come from the PyG wheel index.
+pyg-lib = [{ index = "pyg-wheels" }]
+torch-scatter = [{ index = "pyg-wheels" }]
+torch-sparse = [{ index = "pyg-wheels" }]

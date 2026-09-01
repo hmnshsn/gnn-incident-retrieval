@@ -1,0 +1,34 @@
+# Virtual environments
+.venv/
+venv/
+.devin/
+.devin-plugin/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Jupyter artifacts
+.ipynb_checkpoints/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Downloaded dataset files
+data/raw/*
+
+# Generated experiment outputs
+outputs/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+# Logs
+*.log
