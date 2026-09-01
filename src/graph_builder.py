@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import torch
 from sentence_transformers import SentenceTransformer
@@ -82,6 +83,7 @@ def _make_edges(
 def build_incident_graph_no_target(
     df: pd.DataFrame,
     text_model_name: str = "all-MiniLM-L6-v2",
+    incident_features: np.ndarray | torch.Tensor | None = None,
 ) -> HeteroData:
     """Build a heterogeneous incident graph without closure-code targets.
 
@@ -95,6 +97,9 @@ def build_incident_graph_no_target(
     Args:
         df: Time-sorted cleaned incident dataframe.
         text_model_name: SentenceTransformer model name or local path.
+        incident_features: Optional precomputed incident feature matrix with
+            one row per incident. If omitted, default feature computation is
+            used unchanged.
 
     Returns:
         A CPU-resident PyG HeteroData object suitable for NeighborLoader.
@@ -117,21 +122,28 @@ def build_incident_graph_no_target(
     if not closure_mapping:
         raise ValueError("Closure Code must contain at least one non-null value")
 
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    encoder = SentenceTransformer(text_model_name, device=device)
-    encoded = encoder.encode(
-        _incident_texts(df),
-        batch_size=256,
-        show_progress_bar=True,
-        convert_to_tensor=True,
-        normalize_embeddings=False,
-        device=device,
-    )
-    incident_features = torch.as_tensor(encoded, dtype=torch.float32).cpu()
-    input_dim = incident_features.size(1)
+    if incident_features is None:
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        encoder = SentenceTransformer(text_model_name, device=device)
+        encoded = encoder.encode(
+            _incident_texts(df),
+            batch_size=256,
+            show_progress_bar=True,
+            convert_to_tensor=True,
+            normalize_embeddings=False,
+            device=device,
+        )
+        features = torch.as_tensor(encoded, dtype=torch.float32).cpu()
+    else:
+        features = torch.as_tensor(incident_features, dtype=torch.float32).cpu()
+        if features.ndim != 2 or features.size(0) != len(df):
+            raise ValueError(
+                "incident_features must have shape (len(df), feature_dim)"
+            )
+    input_dim = features.size(1)
 
     data = HeteroData()
-    data["incident"].x = incident_features
+    data["incident"].x = features
     data["incident"].y = torch.tensor(
         [closure_mapping[value] for value in df["Closure Code"]],
         dtype=torch.long,
