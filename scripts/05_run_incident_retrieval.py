@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import random
+import time
 from functools import partial
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from src.baselines_retrieval import (
 from src.data_loader import load_bpi2014_incidents, temporal_split
 from src.evaluate_retrieval import evaluate_retrieval_graded
 from src.graph_builder import build_incident_graph_no_target
+from src.logging_config import setup_logging
 from src.models import HeteroIncidentClassifier, train_minibatch
 from src.relevance import compute_relevance_matrix
 
@@ -153,6 +155,7 @@ def _format_table(results: dict[str, dict[str, float]]) -> str:
 
 def main() -> None:
     """Run baselines and GNN graded retrieval, then save all metrics."""
+    logger = setup_logging("bpi_exp03_retrieval")
     _set_seed(42)
     df = load_bpi2014_incidents()
     train_df, val_df, test_df = temporal_split(df)
@@ -175,6 +178,7 @@ def main() -> None:
     for name, similarities in baseline_functions:
         result_name, metrics = _evaluate_similarity(name, similarities, relevance)
         results[result_name] = metrics
+        logger.info("Baseline evaluation: method=%s, metrics=%s", result_name, metrics)
 
     data = build_incident_graph_no_target(df)
     node_counts = {
@@ -192,6 +196,8 @@ def main() -> None:
         dropout=0.3,
     )
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    logger.info("Training started")
+    training_start = time.perf_counter()
     model, history = train_minibatch(
         model,
         data,
@@ -203,6 +209,7 @@ def main() -> None:
         num_neighbors=NUM_NEIGHBORS,
         device=str(device),
     )
+    logger.info("Training completed: duration_seconds=%.2f", time.perf_counter() - training_start)
     train_embeddings = _extract_incident_embeddings(
         model, data, train_indices, device
     )
@@ -211,8 +218,10 @@ def main() -> None:
     )
     gnn_similarity = _cosine_similarity(test_embeddings, train_embeddings, device)
     _, results["GNN"] = _evaluate_similarity("GNN", gnn_similarity, relevance)
+    logger.info("GNN evaluation: metrics=%s", results["GNN"])
 
-    print(_format_table(results))
+    results_table = _format_table(results)
+    logger.info("Final results table:\n%s", results_table)
     output_path = Path("results/exp03_incident_retrieval/retrieval_results.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
@@ -230,7 +239,7 @@ def main() -> None:
         + "\n",
         encoding="utf-8",
     )
-    print(f"Saved results to {output_path}")
+    logger.info("Output saved: %s", output_path)
 
 
 if __name__ == "__main__":

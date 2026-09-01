@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import logging
 
 import pandas as pd
+
+
+logger = logging.getLogger(__name__)
 
 
 def impute_subcategory(
@@ -77,19 +81,21 @@ def impute_subcategory(
     result.loc[fill_mask, "CI Subtype (aff)"] = imputed_values[fill_mask]
     result["CI Subtype (aff) [imputed]"] = result["CI Subtype (aff)"]
 
-    print(f"Unique CIs with dominant mapping: {len(mapping)}")
-    print(f"Null subcategories filled: {int(fill_mask.sum())}")
-    print(
-        "New subcategory null rate: "
-        f"{result['CI Subtype (aff)'].isna().mean():.2%}"
+    logger.info("Unique CIs with dominant mapping: %d", len(mapping))
+    logger.info("Null subcategories filled: %d", int(fill_mask.sum()))
+    logger.info(
+        "New subcategory null rate: %.2f%%",
+        result["CI Subtype (aff)"].isna().mean() * 100,
     )
-    print("Top 10 CI -> subcategory mappings used for imputation:")
+    logger.info("Top 10 CI -> subcategory mappings used for imputation:")
     if accepted.empty:
-        print("  none")
+        logger.info("  none")
     else:
         for _, row in accepted.sort_values("confidence", ascending=False).head(10).iterrows():
-            print(
-                f"  {row['CI Name (aff)']} -> {row['CI Subtype (aff)']} "
-                f"({row['confidence']:.2%})"
+            logger.info(
+                "  %s -> %s (%.2f%%)",
+                row["CI Name (aff)"],
+                row["CI Subtype (aff)"],
+                row["confidence"] * 100,
             )
     return result

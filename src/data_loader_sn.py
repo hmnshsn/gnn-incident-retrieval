@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pandas as pd
+
+
+logger = logging.getLogger(__name__)
 
 
 SN_INCIDENT_PATH = Path(
@@ -53,19 +57,19 @@ def load_sn_incidents() -> pd.DataFrame:
         }
     )
 
-    print("ServiceNow incident dataset stats:")
-    print(f"  Shape: {df.shape}")
-    print(f"  Date range: {df['opened_at'].min()} to {df['opened_at'].max()}")
-    print(f"  CI unique: {df['CI Name (aff)'].nunique(dropna=True)}")
-    print(f"  Resolution unique: {df['Closure Code'].nunique(dropna=True)}")
-    print(f"  Category unique: {df['Category'].nunique(dropna=True)}")
-    print(f"  Subcategory unique: {df['CI Subtype (aff)'].nunique(dropna=True)}")
-    print("  Null rates:")
+    logger.info("ServiceNow incident dataset stats:")
+    logger.info("  Shape: %s", df.shape)
+    logger.info("  Date range: %s to %s", df["opened_at"].min(), df["opened_at"].max())
+    logger.info("  CI unique: %d", df["CI Name (aff)"].nunique(dropna=True))
+    logger.info("  Resolution unique: %d", df["Closure Code"].nunique(dropna=True))
+    logger.info("  Category unique: %d", df["Category"].nunique(dropna=True))
+    logger.info("  Subcategory unique: %d", df["CI Subtype (aff)"].nunique(dropna=True))
+    logger.info("  Null rates:")
     for column in (
         "CI Name (aff)",
         "Closure Code",
         "Category",
         "CI Subtype (aff)",
     ):
-        print(f"    {column}: {df[column].isna().mean():.2%}")
+        logger.info("    %s: %.2f%%", column, df[column].isna().mean() * 100)
     return df

@@ -32,4 +32,5 @@ checkpoints/
 
 # Logs
 *.log
+logs/
 data/

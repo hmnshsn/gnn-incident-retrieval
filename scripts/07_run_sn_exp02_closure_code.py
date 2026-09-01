@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import random
+import time
 from pathlib import Path
 
 import numpy as np
@@ -18,6 +19,7 @@ from src.baselines import (
 from src.data_loader_sn import load_sn_incidents
 from src.evaluate import evaluate_retrieval
 from src.graph_builder import build_incident_graph_no_target, make_split_masks
+from src.logging_config import setup_logging
 from src.models import HeteroIncidentClassifier, predict_ranks, train_minibatch
 
 
@@ -48,6 +50,7 @@ def _format_table(results: dict[str, dict[str, float]]) -> str:
 
 def main() -> None:
     """Run SN closure-code baselines and GNN evaluation."""
+    logger = setup_logging("sn_exp02_closure_code")
     _set_seed(42)
     df = load_sn_incidents()
     df = df.dropna(subset=["Closure Code"]).reset_index(drop=True)
@@ -73,6 +76,8 @@ def main() -> None:
             text_similarity_baseline(df, split_indices)
         ),
     }
+    for method, metrics in baseline_results.items():
+        logger.info("Baseline evaluation: method=%s, metrics=%s", method, metrics)
 
     data = build_incident_graph_no_target(df)
     node_counts = {
@@ -89,6 +94,8 @@ def main() -> None:
         num_layers=2,
         dropout=0.3,
     )
+    logger.info("Training started")
+    training_start = time.perf_counter()
     model, history = train_minibatch(
         model,
         data,
@@ -99,9 +106,12 @@ def main() -> None:
         batch_size=1024,
         device="cuda:0",
     )
+    logger.info("Training completed: duration_seconds=%.2f", time.perf_counter() - training_start)
     gnn_ranks = predict_ranks(model, data, test_mask, device="cuda:0")
     results = {**baseline_results, "GNN": evaluate_retrieval(gnn_ranks)}
-    print(_format_table(results))
+    logger.info("GNN evaluation: metrics=%s", results["GNN"])
+    results_table = _format_table(results)
+    logger.info("Final results table:\n%s", results_table)
 
     output_path = Path("results/exp02_sn_closure_code/gnn_results.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,7 +129,7 @@ def main() -> None:
         + "\n",
         encoding="utf-8",
     )
-    print(f"Saved results to {output_path}")
+    logger.info("Output saved: %s", output_path)
 
 
 if __name__ == "__main__":
