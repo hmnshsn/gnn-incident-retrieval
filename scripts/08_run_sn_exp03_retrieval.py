@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import random
+import argparse
 from functools import partial
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from src.evaluate_retrieval import evaluate_retrieval_graded
 from src.graph_builder import build_incident_graph_no_target
 from src.models import HeteroIncidentClassifier, train_minibatch
 from src.relevance import compute_relevance_matrix
+from src.impute_subcategory import impute_subcategory
 
 
 BATCH_SIZE = 1024
@@ -152,10 +154,15 @@ def _format_table(results: dict[str, dict[str, float]]) -> str:
     return "\n".join(lines)
 
 
-def main() -> None:
+def main(subtype_mode: str = "imputed") -> None:
     """Run SN retrieval baselines and GNN evaluation, then save metrics."""
     _set_seed(42)
     df = load_sn_incidents()
+    if subtype_mode == "imputed":
+        train_end = int(len(df) * 0.7)
+        df = impute_subcategory(df, train_end)
+    elif subtype_mode == "none":
+        df["CI Subtype (aff)"] = np.nan
     df = df.dropna(subset=["Closure Code"]).reset_index(drop=True)
     train_df, val_df, test_df = temporal_split(df, time_col="opened_at")
     train_indices, val_indices, test_indices = _split_positions(len(df))
@@ -215,7 +222,7 @@ def main() -> None:
     _, results["GNN"] = _evaluate_similarity("GNN", gnn_similarity, relevance)
 
     print(_format_table(results))
-    output_path = Path("results/exp03_sn_incident_retrieval/retrieval_results.json")
+    output_path = Path(f"results/exp03_sn_incident_retrieval/retrieval_results_{subtype_mode}.json")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
         json.dumps(
@@ -236,4 +243,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="SN incident retrieval experiment")
+    parser.add_argument(
+        "--subtype",
+        choices=["raw", "imputed", "none"],
+        default="imputed",
+        help="Subtype edge mode: raw (original), imputed (CI mapping), none (ablation)",
+    )
+    args = parser.parse_args()
+    main(subtype_mode=args.subtype)
