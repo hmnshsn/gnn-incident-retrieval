@@ -34,3 +34,5 @@ checkpoints/
 *.log
 logs/
 data/
+results/*.npy
+results/*.npz
