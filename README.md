@@ -1,28 +1,77 @@
-# gnn-incident-retrieval
+# GNN Incident Retrieval
 
-Research experiment testing whether GNNs over incident ontology graphs can
-retrieve similar past incidents better than text-only baselines.
+Graph Neural Networks for incident-to-incident retrieval in IT Service Management.
 
-## Dataset
+## Datasets
 
-BPI Challenge 2014 (incident management process of a Dutch IT company).
-Raw CSVs live under `data/raw/`.
+| Dataset | Incidents | CIs | Resolution Codes | Categories | Subcategories | Text Fields |
+|---------|-----------|-----|-----------------|------------|---------------|-------------|
+| BPI 2014 (Rabobank) | 46,146 | 2,794 | 14 | 4 | — | None |
+| ServiceNow Internal | 59,151 | 7,140 | 25 | 36 | 154 (57% null) | short_description, description |
 
-## Layout
+## Exp02: Closure Code Prediction
 
-- `src/data_loader.py` — load + clean BPI 2014 CSVs
-- `src/graph_builder.py` — convert tabular data to PyG `HeteroData`
-- `src/baselines.py` — text-only and rule-based retrieval baselines
-- `src/models.py` — GNN models
-- `src/evaluate.py` — Hits@k / MRR computation
-- `src/config.py` — experiment hyperparameters
-- `scripts/` — download + experiment runners
-- `notebooks/` — exploratory analysis
+### BPI 2014
+
+| Method | MRR | Hits@1 | Hits@3 | Hits@5 | Hits@10 |
+|--------|-----|--------|--------|--------|---------|
+| Random | 0.233 | 0.071 | 0.216 | 0.362 | 0.721 |
+| Category-Match | 0.578 | 0.363 | 0.704 | 0.872 | 1.000 |
+| Text-Similarity | 0.578 | 0.350 | 0.743 | 0.928 | 1.000 |
+| CI-Majority | 0.686 | 0.521 | 0.805 | 0.912 | 0.987 |
+| **GNN** | **0.702** | **0.540** | **0.821** | **0.925** | **1.000** |
+
+### ServiceNow Internal
+
+| Method | MRR | Hits@1 | Hits@3 | Hits@5 | Hits@10 |
+|--------|-----|--------|--------|--------|---------|
+| Random | 0.150 | 0.039 | 0.115 | 0.196 | 0.392 |
+| Category-Match | 0.505 | 0.296 | 0.652 | 0.785 | 0.916 |
+| Text-Similarity | 0.525 | 0.338 | 0.618 | 0.795 | 0.942 |
+| CI-Majority | 0.578 | 0.409 | 0.691 | 0.788 | 0.907 |
+| **GNN** | **0.614** | **0.443** | **0.741** | **0.863** | **0.953** |
+
+## Exp03: Incident-to-Incident Retrieval (Graded Relevance)
+
+Relevance: 3 = same CI + same resolution code, 2 = same CI, 1 = same subtype + same resolution code, 0 = otherwise.
+
+### BPI 2014
+
+| Method | nDCG@1 | nDCG@3 | nDCG@5 | nDCG@10 | nDCG@20 | MAP | MRR |
+|--------|--------|--------|--------|---------|---------|-----|-----|
+| Random | 0.021 | 0.023 | 0.024 | 0.023 | 0.024 | 0.083 | 0.200 |
+| Category | 0.019 | 0.021 | 0.026 | 0.027 | 0.027 | 0.100 | 0.214 |
+| CI-Match | 0.565 | 0.603 | 0.610 | 0.622 | 0.642 | 0.360 | 0.938 |
+| CI-Subtype | 0.570 | 0.612 | 0.623 | 0.637 | 0.661 | 0.549 | 0.953 |
+| **GNN** | **0.643** | **0.641** | **0.642** | **0.643** | **0.648** | **0.441** | **0.944** |
+
+### ServiceNow Internal
+
+| Method | nDCG@1 | nDCG@3 | nDCG@5 | nDCG@10 | nDCG@20 | MAP | MRR |
+|--------|--------|--------|--------|---------|---------|-----|-----|
+| Random | 0.022 | 0.022 | 0.022 | 0.023 | 0.024 | 0.067 | 0.177 |
+| Category | 0.043 | 0.070 | 0.078 | 0.087 | 0.096 | 0.142 | 0.275 |
+| CI-Match | 0.557 | 0.572 | 0.578 | 0.582 | 0.589 | 0.354 | 0.876 |
+| CI-Subtype | 0.579 | 0.595 | 0.600 | 0.608 | 0.619 | 0.473 | 0.910 |
+| **GNN** | **0.591** | **0.591** | **0.586** | **0.583** | **0.579** | **0.380** | **0.879** |
+
+## Key Findings
+
+1. CI identity is the dominant signal for incident resolution prediction across both datasets.
+2. GNN adds value via CI type/subtype propagation — lift is larger on the richer SN dataset (+0.036 MRR) than BPI 2014 (+0.016 MRR) for closure-code prediction.
+3. For incident retrieval, GNN achieves best nDCG@1 on both datasets (best top-1 ranking quality).
+4. On SN data, GNN retrieval degrades past top positions due to 57% null subcategories limiting graph propagation. CI-Subtype baseline wins on MAP and deeper nDCG cutoffs.
+5. Cold-start gap on BPI 2014: seen CIs achieve 0.697 MRR vs unseen CIs at 0.522 MRR — this is where GNN helps most.
 
 ## Setup
 
 ```bash
+cd ~/hmnshpl/Graphs/gnn-incident-retrieval
 uv venv .venv --python 3.11
 source .venv/bin/activate
-uv pip install -e ".[dev]"
+uv pip install -e .
 ```
+
+## Constraints
+- Only modify README.md, nothing else
+- Do not run any scripts
