@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class HeteroIncidentClassifier(nn.Module):
-    """Heterogeneous GraphSAGE classifier for incident closure codes."""
+    """Heterogeneous GraphSAGE classifier with optional CI dropout."""
 
     def __init__(
         self,
@@ -30,6 +30,8 @@ class HeteroIncidentClassifier(nn.Module):
         num_classes: int = 14,
         num_layers: int = 2,
         dropout: float = 0.3,
+        ci_dropout_rate: float = 0.0,
+        ci_dropout_mode: str = "embedding",
     ) -> None:
         """Initialize entity embeddings, message-passing layers, and head.
 
@@ -41,6 +43,10 @@ class HeteroIncidentClassifier(nn.Module):
             num_classes: Number of closure-code classes.
             num_layers: Number of heterogeneous GraphSAGE layers.
             dropout: Dropout probability between message-passing layers.
+            ci_dropout_rate: Probability of dropping CI embeddings, CI edges,
+                or both during training.
+            ci_dropout_mode: CI dropout strategy: ``embedding``, ``edge``, or
+                ``both``.
         """
         super().__init__()
         node_types, edge_types = metadata
@@ -48,8 +54,14 @@ class HeteroIncidentClassifier(nn.Module):
             raise ValueError("model dimensions and num_layers must be positive")
         if not 0 <= dropout < 1:
             raise ValueError("dropout must be in [0, 1)")
+        if not 0 <= ci_dropout_rate <= 1:
+            raise ValueError("ci_dropout_rate must be in [0, 1]")
+        if ci_dropout_mode not in {"embedding", "edge", "both"}:
+            raise ValueError("ci_dropout_mode must be embedding, edge, or both")
 
         self.node_types = tuple(node_types)
+        self.ci_dropout_rate = ci_dropout_rate
+        self.ci_dropout_mode = ci_dropout_mode
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.entity_embeddings = nn.ModuleDict(
@@ -79,6 +91,38 @@ class HeteroIncidentClassifier(nn.Module):
         )
         self.classifier = nn.Linear(hidden_dim, num_classes)
         self.dropout = nn.Dropout(dropout)
+
+    def _apply_ci_dropout(
+        self,
+        x_dict: dict[str, torch.Tensor],
+        edge_index_dict: dict[tuple[str, str, str], torch.Tensor],
+    ) -> tuple[dict[str, torch.Tensor], dict[tuple[str, str, str], torch.Tensor]]:
+        """Apply configured CI embedding and/or exact-CI edge dropout."""
+        if not self.training or self.ci_dropout_rate <= 0:
+            return x_dict, edge_index_dict
+
+        dropped_x = dict(x_dict)
+        dropped_edges = dict(edge_index_dict)
+        rate = self.ci_dropout_rate
+        if self.ci_dropout_mode in {"embedding", "both"} and "ci" in dropped_x:
+            mask = (
+                torch.rand(
+                    dropped_x["ci"].size(0),
+                    device=dropped_x["ci"].device,
+                )
+                >= rate
+            ).to(dropped_x["ci"].dtype)
+            dropped_x["ci"] = dropped_x["ci"] * mask.unsqueeze(-1)
+        if self.ci_dropout_mode in {"edge", "both"}:
+            for edge_type, edge_index in dropped_edges.items():
+                if edge_type[0] != "ci" and edge_type[2] != "ci":
+                    continue
+                keep = torch.rand(
+                    edge_index.size(1),
+                    device=edge_index.device,
+                ) >= rate
+                dropped_edges[edge_type] = edge_index[:, keep]
+        return dropped_x, dropped_edges
 
     def forward(self, data: HeteroData) -> torch.Tensor:
         """Compute raw closure-code logits for all sampled incident nodes.
@@ -112,9 +156,12 @@ class HeteroIncidentClassifier(nn.Module):
             else:
                 raise KeyError(f"No features or embedding for node type {node_type}")
 
-        hidden = features
+        hidden, edge_index_dict = self._apply_ci_dropout(
+            features,
+            data.edge_index_dict,
+        )
         for layer_index, conv in enumerate(self.convs):
-            message_outputs = conv(hidden, data.edge_index_dict)
+            message_outputs = conv(hidden, edge_index_dict)
             if layer_index == 0:
                 residuals = {
                     node_type: self.initial_residuals[node_type](node_features)
