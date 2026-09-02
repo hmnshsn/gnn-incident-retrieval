@@ -163,6 +163,21 @@ def build_incident_graph_no_target(
     return data
 
 
+def get_ci_node_names(
+    data: HeteroData,
+    df: pd.DataFrame,
+    ci_col: str = "CI Name (aff)",
+) -> list[str]:
+    """Return CI names in graph node order."""
+    if ci_col not in df.columns:
+        raise KeyError(f"Missing required column: {ci_col}")
+    mapping = _entity_mapping(df[ci_col])
+    expected_count = data["ci"].num_nodes if "ci" in data.node_types else 0
+    if len(mapping) != expected_count:
+        raise ValueError("CI mapping does not match graph node count")
+    return [str(name) for name, _ in sorted(mapping.items(), key=lambda item: item[1])]
+
+
 def make_split_masks(
     df: pd.DataFrame,
     train_frac: float = 0.7,

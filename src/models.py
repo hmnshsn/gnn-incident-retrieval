@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class HeteroIncidentClassifier(nn.Module):
-    """Heterogeneous GraphSAGE classifier with optional CI dropout."""
+    """Heterogeneous GraphSAGE classifier with CI dropout and feature modes."""
 
     def __init__(
         self,
@@ -32,6 +32,7 @@ class HeteroIncidentClassifier(nn.Module):
         dropout: float = 0.3,
         ci_dropout_rate: float = 0.0,
         ci_dropout_mode: str = "embedding",
+        ci_feature_dim: int | None = None,
     ) -> None:
         """Initialize entity embeddings, message-passing layers, and head.
 
@@ -47,6 +48,7 @@ class HeteroIncidentClassifier(nn.Module):
                 or both during training.
             ci_dropout_mode: CI dropout strategy: ``embedding``, ``edge``, or
                 ``both``.
+            ci_feature_dim: Width of optional fixed inductive CI features.
         """
         super().__init__()
         node_types, edge_types = metadata
@@ -58,12 +60,15 @@ class HeteroIncidentClassifier(nn.Module):
             raise ValueError("ci_dropout_rate must be in [0, 1]")
         if ci_dropout_mode not in {"embedding", "edge", "both"}:
             raise ValueError("ci_dropout_mode must be embedding, edge, or both")
+        if ci_feature_dim is not None and ci_feature_dim < 1:
+            raise ValueError("ci_feature_dim must be positive")
 
         self.node_types = tuple(node_types)
         self.ci_dropout_rate = ci_dropout_rate
         self.ci_dropout_mode = ci_dropout_mode
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
+        self.embedding_dim = input_dim
         self.entity_embeddings = nn.ModuleDict(
             {
                 node_type: nn.Embedding(count, input_dim)
@@ -88,6 +93,16 @@ class HeteroIncidentClassifier(nn.Module):
                 node_type: nn.Linear(input_dim, hidden_dim)
                 for node_type in node_types
             }
+        )
+        self.ci_feature_proj = (
+            nn.Linear(ci_feature_dim, self.embedding_dim)
+            if ci_feature_dim is not None
+            else None
+        )
+        self.ci_both_proj = (
+            nn.Linear(self.embedding_dim + self.embedding_dim, self.embedding_dim)
+            if ci_feature_dim is not None
+            else None
         )
         self.classifier = nn.Linear(hidden_dim, num_classes)
         self.dropout = nn.Dropout(dropout)
@@ -124,23 +139,40 @@ class HeteroIncidentClassifier(nn.Module):
                 dropped_edges[edge_type] = edge_index[:, keep]
         return dropped_x, dropped_edges
 
-    def forward(self, data: HeteroData) -> torch.Tensor:
-        """Compute raw closure-code logits for all sampled incident nodes.
+    def forward(
+        self,
+        data: HeteroData,
+        ci_input_features: torch.Tensor | None = None,
+        ci_features_mode: str = "learnable",
+    ) -> torch.Tensor:
+        """Compute closure-code logits using learnable or inductive CI features.
 
         Args:
-            data: Full or NeighborLoader-sampled heterogeneous graph. Sampled
-                entity ``n_id`` values are used to index global embeddings.
-
-        Returns:
-            Tensor of shape ``[number_of_sampled_incidents, num_classes]``.
+            data: Full or NeighborLoader-sampled heterogeneous graph.
+            ci_input_features: Optional CI features aligned to sampled CI nodes.
+            ci_features_mode: ``learnable``, ``inductive``, or ``both``.
         """
+
         features: dict[str, torch.Tensor] = {}
+        if ci_features_mode not in {"learnable", "inductive", "both"}:
+            raise ValueError(
+                "ci_features_mode must be learnable, inductive, or both"
+            )
+        if ci_features_mode != "learnable" and self.ci_feature_proj is None:
+            raise ValueError("ci_feature_dim required for inductive CI features")
+        if ci_features_mode != "learnable" and ci_input_features is None:
+            raise ValueError("ci_input_features required for inductive CI features")
         for node_type in self.node_types:
             if node_type == "incident":
                 features[node_type] = data[node_type].x.detach()
                 continue
+            store = data[node_type]
+            if node_type == "ci" and ci_features_mode != "learnable":
+                projected = self.ci_feature_proj(ci_input_features)
+                if ci_features_mode == "inductive":
+                    features[node_type] = projected
+                    continue
             if node_type in self.entity_embeddings:
-                store = data[node_type]
                 if hasattr(store, "n_id"):
                     node_indices = store.n_id.to(
                         self.entity_embeddings[node_type].weight.device
@@ -150,9 +182,15 @@ class HeteroIncidentClassifier(nn.Module):
                         store.num_nodes,
                         device=self.entity_embeddings[node_type].weight.device,
                     )
-                features[node_type] = self.entity_embeddings[node_type](node_indices)
-            elif hasattr(data[node_type], "x"):
-                features[node_type] = data[node_type].x.detach()
+                embedding = self.entity_embeddings[node_type](node_indices)
+                if node_type == "ci" and ci_features_mode == "both":
+                    features[node_type] = self.ci_both_proj(
+                        torch.cat([projected, embedding], dim=-1)
+                    )
+                else:
+                    features[node_type] = embedding
+            elif hasattr(store, "x"):
+                features[node_type] = store.x.detach()
             else:
                 raise KeyError(f"No features or embedding for node type {node_type}")
 
@@ -199,6 +237,8 @@ def _evaluate_loader(
     model: HeteroIncidentClassifier,
     loader: NeighborLoader,
     device: torch.device,
+    ci_input_features: torch.Tensor | None = None,
+    ci_features_mode: str = "learnable",
 ) -> tuple[float, float]:
     """Compute mean cross-entropy and accuracy over a sampled loader."""
     model.eval()
@@ -209,7 +249,14 @@ def _evaluate_loader(
         for batch in loader:
             batch = batch.to(device)
             seed_count = batch["incident"].batch_size
-            logits = model(batch)[:seed_count]
+            batch_ci_features = (
+                ci_input_features[batch["ci"].n_id.cpu()].to(device)
+                if ci_input_features is not None
+                else None
+            )
+            logits = model(
+                batch, batch_ci_features, ci_features_mode
+            )[:seed_count]
             labels = batch["incident"].y[:seed_count]
             loss = F.cross_entropy(logits, labels)
             total_loss += float(loss.item()) * seed_count
@@ -232,6 +279,8 @@ def train_minibatch(
     device: str = "cuda:0",
     patience: int = 10,
     min_delta: float = 1e-4,
+    ci_input_features: torch.Tensor | None = None,
+    ci_features_mode: str = "learnable",
 ) -> tuple[HeteroIncidentClassifier, dict[str, object]]:
     """Train the classifier with sampled incident minibatches.
 
@@ -247,6 +296,8 @@ def train_minibatch(
         device: Requested torch device, falling back to CPU if unavailable.
         patience: Number of consecutive non-improving epochs before stopping.
         min_delta: Minimum validation-loss decrease counted as improvement.
+        ci_input_features: Full CI feature matrix indexed by global node ID.
+        ci_features_mode: CI feature assembly mode.
 
     Returns:
         The model restored to its best validation-loss state and a history
@@ -301,7 +352,14 @@ def train_minibatch(
         for batch in batch_bar:
             batch = batch.to(actual_device)
             seed_count = batch["incident"].batch_size
-            logits = model(batch)[:seed_count]
+            batch_ci_features = (
+                ci_input_features[batch["ci"].n_id.cpu()].to(actual_device)
+                if ci_input_features is not None
+                else None
+            )
+            logits = model(
+                batch, batch_ci_features, ci_features_mode
+            )[:seed_count]
             labels = batch["incident"].y[:seed_count]
             loss = F.cross_entropy(logits, labels)
             optimizer.zero_grad()
@@ -313,7 +371,13 @@ def train_minibatch(
         if total_examples == 0:
             raise ValueError("train_mask selects no incidents")
         train_loss = total_train_loss / total_examples
-        val_loss, val_acc = _evaluate_loader(model, val_loader, actual_device)
+        val_loss, val_acc = _evaluate_loader(
+            model,
+            val_loader,
+            actual_device,
+            ci_input_features,
+            ci_features_mode,
+        )
         train_loss_history.append(train_loss)
         val_loss_history.append(val_loss)
         val_acc_history.append(val_acc)
@@ -396,6 +460,8 @@ def extract_incident_embeddings(
     data: HeteroData,
     loader: NeighborLoader,
     device: str = "cpu",
+    ci_input_features: torch.Tensor | None = None,
+    ci_features_mode: str = "learnable",
 ) -> torch.Tensor:
     """Extract pre-classifier incident embeddings in global node order.
 
@@ -429,7 +495,12 @@ def extract_incident_embeddings(
             for batch in loader:
                 batch = batch.to(actual_device)
                 captured.clear()
-                model(batch)
+                batch_ci_features = (
+                    ci_input_features[batch["ci"].n_id.cpu()].to(actual_device)
+                    if ci_input_features is not None
+                    else None
+                )
+                model(batch, batch_ci_features, ci_features_mode)
                 if not captured:
                     raise RuntimeError("classifier hook did not capture embeddings")
                 incident_store = batch["incident"]
