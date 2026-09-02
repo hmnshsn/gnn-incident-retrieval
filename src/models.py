@@ -158,17 +158,21 @@ class HeteroIncidentClassifier(nn.Module):
             raise ValueError(
                 "ci_features_mode must be learnable, inductive, or both"
             )
-        if ci_features_mode != "learnable" and self.ci_feature_proj is None:
-            raise ValueError("ci_feature_dim required for inductive CI features")
         if ci_features_mode != "learnable" and ci_input_features is None:
             raise ValueError("ci_input_features required for inductive CI features")
+        if ci_features_mode == "both" and self.ci_both_proj is None:
+            raise ValueError("ci_feature_dim required for both CI features")
         for node_type in self.node_types:
             if node_type == "incident":
                 features[node_type] = data[node_type].x.detach()
                 continue
             store = data[node_type]
             if node_type == "ci" and ci_features_mode != "learnable":
-                projected = self.ci_feature_proj(ci_input_features)
+                projected = (
+                    self.ci_feature_proj(ci_input_features)
+                    if self.ci_feature_proj is not None
+                    else ci_input_features
+                )
                 if ci_features_mode == "inductive":
                     features[node_type] = projected
                     continue
