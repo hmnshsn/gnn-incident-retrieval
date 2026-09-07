@@ -1,0 +1,50 @@
+{
+  "sweep_name": "smoke_sweep_v1",
+  "sweep_notes": "Verify native sweep wiring end to end",
+  "timestamp_start": "2026-09-03T10:29:11.688157+00:00",
+  "git_commit": "c1a4867f4b3b26be724fe92b78f1b03225e3d65b",
+  "axes": {
+    "features": [
+      "concat"
+    ],
+    "entity_embed_dim": [
+      64
+    ],
+    "ci_dropout_rate": [
+      0.5
+    ],
+    "ci_dropout_mode": [
+      "embedding"
+    ],
+    "lr": [
+      0.0005
+    ],
+    "weight_decay": [
+      0.0001
+    ],
+    "hidden_dim": [
+      128
+    ],
+    "num_layers": [
+      2
+    ],
+    "dropout": [
+      0.3
+    ],
+    "seed": [
+      1,
+      2
+    ]
+  },
+  "method": "grid",
+  "count": null,
+  "metric": {
+    "name": "unseen_ndcg1",
+    "goal": "maximize"
+  },
+  "epochs": 3,
+  "patience": 4,
+  "subtype": "raw",
+  "sweep_id": "zxcu78sp",
+  "sweep_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/sweeps/zxcu78sp"
+}

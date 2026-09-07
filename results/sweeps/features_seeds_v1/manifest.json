@@ -1,0 +1,55 @@
+{
+  "sweep_name": "features_seeds_v1",
+  "sweep_notes": "categorical vs text vs concat, 5 seeds each, hyperparameters held fixed",
+  "timestamp_start": "2026-09-03T14:18:42.400882+00:00",
+  "git_commit": "c1a4867f4b3b26be724fe92b78f1b03225e3d65b",
+  "axes": {
+    "features": [
+      "categorical",
+      "text",
+      "concat"
+    ],
+    "entity_embed_dim": [
+      64
+    ],
+    "ci_dropout_rate": [
+      0.5
+    ],
+    "ci_dropout_mode": [
+      "embedding"
+    ],
+    "lr": [
+      0.0005
+    ],
+    "weight_decay": [
+      0.0001
+    ],
+    "hidden_dim": [
+      128
+    ],
+    "num_layers": [
+      2
+    ],
+    "dropout": [
+      0.3
+    ],
+    "seed": [
+      1,
+      2,
+      3,
+      42,
+      123
+    ]
+  },
+  "method": "grid",
+  "count": null,
+  "metric": {
+    "name": "unseen_ndcg1",
+    "goal": "maximize"
+  },
+  "epochs": 100,
+  "patience": 10,
+  "subtype": "raw",
+  "sweep_id": "d6y6v06k",
+  "sweep_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/sweeps/d6y6v06k"
+}

@@ -1,0 +1,157 @@
+_wandb:
+    value:
+        cli_version: 0.29.0
+        e:
+            0h4odwh2hx0gdoj2hb0uy2qphfy7kyur:
+                args:
+                    - --sweep-name
+                    - knn_edges_v1
+                    - --sweep-notes
+                    - Text-kNN incident-to-incident edges, k in 0/5/10/25, 5 seeds
+                    - --features
+                    - concat
+                    - --entity-embed-dims
+                    - "64"
+                    - --ci-dropout-rates
+                    - "0.5"
+                    - --lrs
+                    - "5e-4"
+                    - --knn-edges
+                    - "0"
+                    - "5"
+                    - "10"
+                    - "25"
+                    - --seeds
+                    - "1"
+                    - "2"
+                    - "3"
+                    - "42"
+                    - "123"
+                    - --epochs
+                    - "100"
+                    - --patience
+                    - "10"
+                    - --method
+                    - grid
+                    - --metric-name
+                    - unseen_map
+                codePath: scripts/23_sweep_agent.py
+                codePathLocal: scripts/23_sweep_agent.py
+                cpu_count: 128
+                cpu_count_logical: 256
+                cudaVersion: "13.2"
+                disk:
+                    /:
+                        total: "1887374536704"
+                        used: "311067320320"
+                email: himanshu.pal@servicenow.com
+                executable: /home/toolkit/hmnshpl/Graphs/gnn-incident-retrieval/.venv/bin/python3
+                git:
+                    commit: c1a4867f4b3b26be724fe92b78f1b03225e3d65b
+                    remote: git@github.com:hmnshsn/gnn-incident-retrieval.git
+                gpu: NVIDIA A100-SXM4-80GB
+                gpu_count: 2
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-fa1e819f-5277-ab58-6240-7f53e43fae52
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100-SXM4-80GB
+                      uuid: GPU-71d434a0-9e64-d3ef-2ff9-8a438e925ad0
+                host: 2fce5029-ab19-4fa1-8096-baa533bbccc1
+                memory:
+                    total: "2164247588864"
+                os: Linux-6.8.0-1060-nvidia-x86_64-with-glibc2.35
+                program: /home/toolkit/hmnshpl/Graphs/gnn-incident-retrieval/scripts/23_sweep_agent.py
+                python: CPython 3.11.14
+                root: /home/toolkit/hmnshpl/Graphs/gnn-incident-retrieval
+                startedAt: "2026-09-03T18:46:56.601631Z"
+                writerId: 0h4odwh2hx0gdoj2hb0uy2qphfy7kyur
+        m: []
+        python_version: 3.11.14
+        t:
+            "1":
+                - 1
+                - 5
+                - 11
+                - 49
+                - 53
+                - 75
+                - 77
+            "2":
+                - 1
+                - 5
+                - 11
+                - 49
+                - 53
+                - 75
+                - 77
+            "3":
+                - 2
+                - 14
+                - 17
+                - 62
+                - 61
+            "4": 3.11.14
+            "5": 0.29.0
+            "6": 5.16.1
+            "12": 0.29.0
+            "13": linux-x86_64
+batch_size:
+    value: 1024
+ci_dropout_mode:
+    value: embedding
+ci_dropout_rate:
+    value: 0.5
+dropout:
+    value: 0.3
+entity_embed_dim:
+    value: 64
+epochs_max:
+    value: 100
+features:
+    value: concat
+git_commit:
+    value: c1a4867f4b3b26be724fe92b78f1b03225e3d65b
+hidden_dim:
+    value: 128
+input_dim:
+    value: 768
+knn_edges:
+    value: 10
+knn_scope:
+    value: all
+lr:
+    value: 0.0005
+num_cis:
+    value: 7102
+num_incidents:
+    value: 58216
+num_layers:
+    value: 2
+num_neighbors:
+    value:
+        - 15
+        - 10
+num_test:
+    value: 8733
+num_test_seen:
+    value: 7284
+num_test_unseen:
+    value: 1449
+num_train:
+    value: 40751
+patience:
+    value: 10
+seed:
+    value: 3
+subtype:
+    value: raw
+sweep_name:
+    value: knn_edges_v1
+weight_decay:
+    value: 0.0001

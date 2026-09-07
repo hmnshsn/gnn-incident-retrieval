@@ -1,0 +1,75 @@
+{
+  "os":  "Linux-6.8.0-1060-nvidia-x86_64-with-glibc2.35",
+  "python":  "CPython 3.11.14",
+  "startedAt":  "2026-09-04T12:26:14.894111Z",
+  "args":  [
+    "--sweep-name",
+    "smoke_arch",
+    "--features",
+    "concat",
+    "--entity-embed-dims",
+    "64",
+    "--ci-dropout-rates",
+    "0.5",
+    "--lrs",
+    "5e-4",
+    "--hidden-dims",
+    "64",
+    "--dropouts",
+    "0.5",
+    "--weight-decays",
+    "1e-4",
+    "--seeds",
+    "42",
+    "--epochs",
+    "3",
+    "--patience",
+    "3",
+    "--method",
+    "grid",
+    "--metric-name",
+    "unseen_map"
+  ],
+  "program":  "/home/toolkit/hmnshpl/Graphs/gnn-incident-retrieval/scripts/23_sweep_agent.py",
+  "codePath":  "scripts/23_sweep_agent.py",
+  "codePathLocal":  "scripts/23_sweep_agent.py",
+  "git":  {
+    "remote":  "git@github.com:hmnshsn/gnn-incident-retrieval.git",
+    "commit":  "c1a4867f4b3b26be724fe92b78f1b03225e3d65b"
+  },
+  "email":  "himanshu.pal@servicenow.com",
+  "root":  "/home/toolkit/hmnshpl/Graphs/gnn-incident-retrieval",
+  "host":  "2fce5029-ab19-4fa1-8096-baa533bbccc1",
+  "executable":  "/home/toolkit/hmnshpl/Graphs/gnn-incident-retrieval/.venv/bin/python3",
+  "cpu_count":  112,
+  "cpu_count_logical":  224,
+  "gpu":  "NVIDIA H100 80GB HBM3",
+  "gpu_count":  2,
+  "disk":  {
+    "/":  {
+      "total":  "122396223049728",
+      "used":  "231010893824"
+    }
+  },
+  "memory":  {
+    "total":  "4328609345536"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA H100 80GB HBM3",
+      "memoryTotal":  "85520809984",
+      "cudaCores":  16896,
+      "architecture":  "Hopper",
+      "uuid":  "GPU-ad47c88e-56c4-1354-2de9-2ab1ffc8bd6a"
+    },
+    {
+      "name":  "NVIDIA H100 80GB HBM3",
+      "memoryTotal":  "85520809984",
+      "cudaCores":  16896,
+      "architecture":  "Hopper",
+      "uuid":  "GPU-bf7d8b38-63dc-d51d-6090-151b46023b4b"
+    }
+  ],
+  "cudaVersion":  "13.2",
+  "writerId":  "tvegaotq8uz9t9v8rh7e0l9urc9122hb"
+}

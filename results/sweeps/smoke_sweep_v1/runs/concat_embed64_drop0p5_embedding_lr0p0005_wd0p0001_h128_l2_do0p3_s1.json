@@ -1,0 +1,57 @@
+{
+  "config": {
+    "features": "concat",
+    "entity_embed_dim": 64,
+    "ci_dropout_rate": 0.5,
+    "ci_dropout_mode": "embedding",
+    "lr": 0.0005,
+    "weight_decay": 0.0001,
+    "hidden_dim": 128,
+    "num_layers": 2,
+    "dropout": 0.3,
+    "seed": 1
+  },
+  "input_dim": 768,
+  "epochs_trained": 3,
+  "best_epoch": 3,
+  "best_val_loss": 1.7178503443110278,
+  "stopped_early": false,
+  "train_loss_history": [
+    2.4789908015067756,
+    1.921633536562721,
+    1.8117109636438893
+  ],
+  "val_loss_history": [
+    1.918575368995684,
+    1.7746700923267003,
+    1.7178503443110278
+  ],
+  "val_acc_history": [
+    0.4088410444342648,
+    0.4358680714612918,
+    0.44663307375171785
+  ],
+  "results": {
+    "seen": {
+      "ndcg@1": 0.6766886326194691,
+      "ndcg@5": 0.6598407910190199,
+      "map": 0.3574358233129289,
+      "mrr": 0.9613520534952494
+    },
+    "unseen": {
+      "ndcg@1": 0.2910381543921921,
+      "ndcg@5": 0.29083205940601276,
+      "map": 0.18746833915884686,
+      "mrr": 0.4591455163437062
+    },
+    "all": {
+      "ndcg@1": 0.6125697273069599,
+      "ndcg@5": 0.5986069808566393,
+      "map": 0.32923448125097954,
+      "mrr": 0.878024757911534
+    }
+  },
+  "run_duration_sec": 110.18709428515285,
+  "wandb_run_id": "wvilcu6d",
+  "wandb_run_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/runs/wvilcu6d"
+}

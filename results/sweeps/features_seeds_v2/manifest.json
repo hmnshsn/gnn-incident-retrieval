@@ -1,0 +1,61 @@
+{
+  "sweep_name": "features_seeds_v2",
+  "sweep_notes": "Re-run after relevance null-matching fix: categorical vs text vs concat, 5 seeds",
+  "timestamp_start": "2026-09-04T07:48:09.701701+00:00",
+  "git_commit": "c1a4867f4b3b26be724fe92b78f1b03225e3d65b",
+  "axes": {
+    "features": [
+      "categorical",
+      "text",
+      "concat"
+    ],
+    "entity_embed_dim": [
+      64
+    ],
+    "ci_dropout_rate": [
+      0.5
+    ],
+    "ci_dropout_mode": [
+      "embedding"
+    ],
+    "lr": [
+      0.0005
+    ],
+    "weight_decay": [
+      0.0001
+    ],
+    "hidden_dim": [
+      128
+    ],
+    "num_layers": [
+      2
+    ],
+    "dropout": [
+      0.3
+    ],
+    "seed": [
+      1,
+      2,
+      3,
+      42,
+      123
+    ],
+    "knn_edges": [
+      0
+    ],
+    "knn_scope": [
+      "all"
+    ]
+  },
+  "method": "grid",
+  "count": null,
+  "metric": {
+    "name": "unseen_map",
+    "goal": "maximize"
+  },
+  "epochs": 100,
+  "patience": 10,
+  "subtype": "raw",
+  "sweep_id": "qab6z4w7",
+  "sweep_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/sweeps/qab6z4w7"
+}

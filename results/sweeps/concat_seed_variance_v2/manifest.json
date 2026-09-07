@@ -1,0 +1,60 @@
+{
+  "sweep_name": "concat_seed_variance_v2",
+  "sweep_notes": "Re-run after relevance fix: noise floor, 2 configs x 5 seeds",
+  "timestamp_start": "2026-09-04T09:03:52.889832+00:00",
+  "git_commit": "c1a4867f4b3b26be724fe92b78f1b03225e3d65b",
+  "axes": {
+    "features": [
+      "concat"
+    ],
+    "entity_embed_dim": [
+      64
+    ],
+    "ci_dropout_rate": [
+      0.5,
+      0.7
+    ],
+    "ci_dropout_mode": [
+      "embedding"
+    ],
+    "lr": [
+      0.0005
+    ],
+    "weight_decay": [
+      0.0001
+    ],
+    "hidden_dim": [
+      128
+    ],
+    "num_layers": [
+      2
+    ],
+    "dropout": [
+      0.3
+    ],
+    "seed": [
+      1,
+      2,
+      3,
+      42,
+      123
+    ],
+    "knn_edges": [
+      0
+    ],
+    "knn_scope": [
+      "all"
+    ]
+  },
+  "method": "grid",
+  "count": null,
+  "metric": {
+    "name": "unseen_map",
+    "goal": "maximize"
+  },
+  "epochs": 100,
+  "patience": 10,
+  "subtype": "raw",
+  "sweep_id": "35ks9x6l",
+  "sweep_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/sweeps/35ks9x6l"
+}

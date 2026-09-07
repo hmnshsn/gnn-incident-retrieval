@@ -1,0 +1,85 @@
+{
+  "os":  "Linux-6.8.0-1060-nvidia-x86_64-with-glibc2.35",
+  "python":  "CPython 3.11.14",
+  "startedAt":  "2026-09-07T05:26:57.309426Z",
+  "args":  [
+    "--sweep-name",
+    "defD_lr_wd_v1",
+    "--sweep-notes",
+    "Definition D Phase 2: lr x weight_decay at best arch h256/do0.1, 5 seeds",
+    "--features",
+    "concat",
+    "--entity-embed-dims",
+    "64",
+    "--ci-dropout-rates",
+    "0.5",
+    "--lrs",
+    "3e-4",
+    "5e-4",
+    "1e-3",
+    "--hidden-dims",
+    "256",
+    "--dropouts",
+    "0.1",
+    "--weight-decays",
+    "1e-4",
+    "5e-4",
+    "1e-3",
+    "--seeds",
+    "1",
+    "2",
+    "3",
+    "42",
+    "123",
+    "--epochs",
+    "100",
+    "--patience",
+    "10",
+    "--method",
+    "grid",
+    "--metric-name",
+    "unseen_map"
+  ],
+  "program":  "/home/toolkit/hmnshpl/Graphs/gnn-incident-retrieval/scripts/23_sweep_agent.py",
+  "codePath":  "scripts/23_sweep_agent.py",
+  "codePathLocal":  "scripts/23_sweep_agent.py",
+  "git":  {
+    "remote":  "git@github.com:hmnshsn/gnn-incident-retrieval.git",
+    "commit":  "c1a4867f4b3b26be724fe92b78f1b03225e3d65b"
+  },
+  "email":  "himanshu.pal@servicenow.com",
+  "root":  "/home/toolkit/hmnshpl/Graphs/gnn-incident-retrieval",
+  "host":  "2fce5029-ab19-4fa1-8096-baa533bbccc1",
+  "executable":  "/home/toolkit/hmnshpl/Graphs/gnn-incident-retrieval/.venv/bin/python3",
+  "cpu_count":  128,
+  "cpu_count_logical":  256,
+  "gpu":  "NVIDIA A100-SXM4-80GB",
+  "gpu_count":  2,
+  "disk":  {
+    "/":  {
+      "total":  "1887374536704",
+      "used":  "356494790656"
+    }
+  },
+  "memory":  {
+    "total":  "2164247576576"
+  },
+  "gpu_nvidia":  [
+    {
+      "name":  "NVIDIA A100-SXM4-80GB",
+      "memoryTotal":  "85899345920",
+      "cudaCores":  6912,
+      "architecture":  "Ampere",
+      "uuid":  "GPU-59f49c6d-84c8-8e73-c47a-b293aeb970e2"
+    },
+    {
+      "name":  "NVIDIA A100-SXM4-80GB",
+      "memoryTotal":  "85899345920",
+      "cudaCores":  6912,
+      "architecture":  "Ampere",
+      "uuid":  "GPU-34ebbbcd-375f-d159-da56-7fc791b7b7a2"
+    }
+  ],
+  "cudaVersion":  "13.2",
+  "writerId":  "s1zuev1sch2zu9rr31uyyjmgam4u0j0v"
+}

@@ -14,12 +14,14 @@ from torch_geometric.loader import NeighborLoader
 from torch_geometric.nn import HeteroConv, SAGEConv
 from tqdm import tqdm
 
+from src.triplet_loss import batch_triplet_loss
+
 
 logger = logging.getLogger(__name__)
 
 
 class HeteroIncidentClassifier(nn.Module):
-    """Heterogeneous GraphSAGE classifier with CI dropout and feature modes."""
+    """Heterogeneous GraphSAGE classifier with configurable entity embeddings."""
 
     def __init__(
         self,
@@ -33,6 +35,7 @@ class HeteroIncidentClassifier(nn.Module):
         ci_dropout_rate: float = 0.0,
         ci_dropout_mode: str = "embedding",
         ci_feature_dim: int | None = None,
+        entity_embed_dim: int | None = None,
     ) -> None:
         """Initialize entity embeddings, message-passing layers, and head.
 
@@ -49,6 +52,8 @@ class HeteroIncidentClassifier(nn.Module):
             ci_dropout_mode: CI dropout strategy: ``embedding``, ``edge``, or
                 ``both``.
             ci_feature_dim: Width of optional fixed inductive CI features.
+            entity_embed_dim: Width of learnable entity embeddings. Defaults to
+                ``input_dim``.
         """
         super().__init__()
         node_types, edge_types = metadata
@@ -62,6 +67,8 @@ class HeteroIncidentClassifier(nn.Module):
             raise ValueError("ci_dropout_mode must be embedding, edge, or both")
         if ci_feature_dim is not None and ci_feature_dim < 1:
             raise ValueError("ci_feature_dim must be positive")
+        if entity_embed_dim is not None and entity_embed_dim < 1:
+            raise ValueError("entity_embed_dim must be positive")
 
         self.node_types = tuple(node_types)
         self.ci_dropout_rate = ci_dropout_rate
@@ -69,13 +76,26 @@ class HeteroIncidentClassifier(nn.Module):
         self.input_dim = input_dim
         self.hidden_dim = hidden_dim
         self.embedding_dim = input_dim
+        _embed_dim = (
+            entity_embed_dim if entity_embed_dim is not None else input_dim
+        )
+        self._entity_embed_dim = _embed_dim
         self.entity_embeddings = nn.ModuleDict(
             {
-                node_type: nn.Embedding(count, input_dim)
+                node_type: nn.Embedding(count, _embed_dim)
                 for node_type, count in node_counts.items()
                 if node_type != "incident" and count > 0
             }
         )
+        if _embed_dim != input_dim:
+            self.entity_projections = nn.ModuleDict(
+                {
+                    node_type: nn.Linear(_embed_dim, input_dim)
+                    for node_type in self.entity_embeddings
+                }
+            )
+        else:
+            self.entity_projections = None
         self.convs = nn.ModuleList()
         for layer_index in range(num_layers):
             channels = input_dim if layer_index == 0 else hidden_dim
@@ -95,12 +115,12 @@ class HeteroIncidentClassifier(nn.Module):
             }
         )
         self.ci_feature_proj = (
-            nn.Linear(ci_feature_dim, self.embedding_dim)
+            nn.Linear(ci_feature_dim, _embed_dim)
             if ci_feature_dim is not None
             else None
         )
         self.ci_both_proj = (
-            nn.Linear(self.embedding_dim + self.embedding_dim, self.embedding_dim)
+            nn.Linear(_embed_dim + _embed_dim, _embed_dim)
             if ci_feature_dim is not None
             else None
         )
@@ -144,13 +164,15 @@ class HeteroIncidentClassifier(nn.Module):
         data: HeteroData,
         ci_input_features: torch.Tensor | None = None,
         ci_features_mode: str = "learnable",
-    ) -> torch.Tensor:
+        return_embeddings: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """Compute closure-code logits using learnable or inductive CI features.
 
         Args:
             data: Full or NeighborLoader-sampled heterogeneous graph.
             ci_input_features: Optional CI features aligned to sampled CI nodes.
             ci_features_mode: ``learnable``, ``inductive``, or ``both``.
+            return_embeddings: Whether to return pre-classifier incident embeddings.
         """
 
         features: dict[str, torch.Tensor] = {}
@@ -167,15 +189,13 @@ class HeteroIncidentClassifier(nn.Module):
                 features[node_type] = data[node_type].x.detach()
                 continue
             store = data[node_type]
+            projected = None
             if node_type == "ci" and ci_features_mode != "learnable":
                 projected = (
                     self.ci_feature_proj(ci_input_features)
                     if self.ci_feature_proj is not None
                     else ci_input_features
                 )
-                if ci_features_mode == "inductive":
-                    features[node_type] = projected
-                    continue
             if node_type in self.entity_embeddings:
                 if hasattr(store, "n_id"):
                     node_indices = store.n_id.to(
@@ -187,16 +207,22 @@ class HeteroIncidentClassifier(nn.Module):
                         device=self.entity_embeddings[node_type].weight.device,
                     )
                 embedding = self.entity_embeddings[node_type](node_indices)
-                if node_type == "ci" and ci_features_mode == "both":
-                    features[node_type] = self.ci_both_proj(
+                if node_type == "ci" and ci_features_mode == "inductive":
+                    raw = projected
+                elif node_type == "ci" and ci_features_mode == "both":
+                    raw = self.ci_both_proj(
                         torch.cat([projected, embedding], dim=-1)
                     )
                 else:
-                    features[node_type] = embedding
+                    raw = embedding
             elif hasattr(store, "x"):
-                features[node_type] = store.x.detach()
+                raw = store.x.detach()
             else:
                 raise KeyError(f"No features or embedding for node type {node_type}")
+            if self.entity_projections is not None and node_type in self.entity_projections:
+                features[node_type] = self.entity_projections[node_type](raw)
+            else:
+                features[node_type] = raw
 
         hidden, edge_index_dict = self._apply_ci_dropout(
             features,
@@ -217,7 +243,9 @@ class HeteroIncidentClassifier(nn.Module):
                 )
                 for node_type in self.node_types
             }
-        return self.classifier(hidden["incident"])
+        incident_embeddings = hidden["incident"]
+        logits = self.classifier(incident_embeddings)
+        return (logits, incident_embeddings) if return_embeddings else logits
 
 
 def _neighbor_loader(
@@ -243,10 +271,14 @@ def _evaluate_loader(
     device: torch.device,
     ci_input_features: torch.Tensor | None = None,
     ci_features_mode: str = "learnable",
-) -> tuple[float, float]:
-    """Compute mean cross-entropy and accuracy over a sampled loader."""
+    triplet_weight: float = 0.0,
+    triplet_margin: float = 0.2,
+) -> tuple[float, float, float, int]:
+    """Compute validation loss, accuracy, and optional triplet metrics."""
     model.eval()
     total_loss = 0.0
+    total_triplet_loss = 0.0
+    total_active_triplets = 0
     total_correct = 0
     total_examples = 0
     with torch.no_grad():
@@ -258,17 +290,37 @@ def _evaluate_loader(
                 if ci_input_features is not None
                 else None
             )
-            logits = model(
-                batch, batch_ci_features, ci_features_mode
-            )[:seed_count]
+            if triplet_weight > 0:
+                logits, embeddings = model(
+                    batch, batch_ci_features, ci_features_mode,
+                    return_embeddings=True,
+                )
+                embeddings = embeddings[:seed_count]
+            else:
+                logits = model(batch, batch_ci_features, ci_features_mode)
+            logits = logits[:seed_count]
             labels = batch["incident"].y[:seed_count]
-            loss = F.cross_entropy(logits, labels)
+            ce_loss = F.cross_entropy(logits, labels)
+            if triplet_weight > 0:
+                triplet_loss, n_active = batch_triplet_loss(
+                    embeddings, labels, margin=triplet_margin
+                )
+            else:
+                triplet_loss, n_active = ce_loss.new_zeros(()), 0
+            loss = (1.0 - triplet_weight) * ce_loss + triplet_weight * triplet_loss
             total_loss += float(loss.item()) * seed_count
+            total_triplet_loss += float(triplet_loss.item()) * seed_count
+            total_active_triplets += n_active
             total_correct += int((logits.argmax(dim=-1) == labels).sum().item())
             total_examples += seed_count
     if total_examples == 0:
         raise ValueError("evaluation mask selects no incidents")
-    return total_loss / total_examples, total_correct / total_examples
+    return (
+        total_loss / total_examples,
+        total_correct / total_examples,
+        total_triplet_loss / total_examples,
+        total_active_triplets,
+    )
 
 
 def train_minibatch(
@@ -278,6 +330,7 @@ def train_minibatch(
     val_mask: torch.Tensor,
     epochs: int = 50,
     lr: float = 0.005,
+    weight_decay: float = 1e-4,
     batch_size: int = 1024,
     num_neighbors: Sequence[int] | None = None,
     device: str = "cuda:0",
@@ -285,6 +338,8 @@ def train_minibatch(
     min_delta: float = 1e-4,
     ci_input_features: torch.Tensor | None = None,
     ci_features_mode: str = "learnable",
+    triplet_weight: float = 0.0,
+    triplet_margin: float = 0.2,
 ) -> tuple[HeteroIncidentClassifier, dict[str, object]]:
     """Train the classifier with sampled incident minibatches.
 
@@ -295,6 +350,7 @@ def train_minibatch(
         val_mask: Boolean mask selecting validation incidents.
         epochs: Number of training epochs.
         lr: AdamW learning rate.
+        weight_decay: AdamW weight decay coefficient.
         batch_size: Number of seed incidents per sampled batch.
         num_neighbors: Neighbors sampled per hop; defaults to ``[15, 10]``.
         device: Requested torch device, falling back to CPU if unavailable.
@@ -302,6 +358,8 @@ def train_minibatch(
         min_delta: Minimum validation-loss decrease counted as improvement.
         ci_input_features: Full CI feature matrix indexed by global node ID.
         ci_features_mode: CI feature assembly mode.
+        triplet_weight: Weight of triplet loss relative to cross-entropy.
+        triplet_margin: Margin used by semi-hard triplet mining.
 
     Returns:
         The model restored to its best validation-loss state and a history
@@ -312,6 +370,8 @@ def train_minibatch(
         raise ValueError("epochs, lr, and batch_size must be positive")
     if patience < 1 or min_delta < 0:
         raise ValueError("patience must be positive and min_delta non-negative")
+    if not 0 <= triplet_weight <= 1 or triplet_margin < 0:
+        raise ValueError("triplet_weight must be in [0, 1] and triplet_margin non-negative")
     neighbors = [15, 10] if num_neighbors is None else list(num_neighbors)
     if not neighbors or any(value < 0 for value in neighbors):
         raise ValueError("num_neighbors must contain non-negative values")
@@ -326,10 +386,12 @@ def train_minibatch(
         data, train_mask, batch_size, neighbors, shuffle=True
     )
     val_loader = _neighbor_loader(data, val_mask, batch_size, neighbors, shuffle=False)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     train_loss_history: list[float] = []
     val_loss_history: list[float] = []
     val_acc_history: list[float] = []
+    train_triplet_history: list[float] = []
+    val_triplet_history: list[float] = []
     history: dict[str, object] = {
         "train_loss": train_loss_history,
         "val_loss": val_loss_history,
@@ -337,6 +399,13 @@ def train_minibatch(
         "best_epoch": 0,
         "stopped_early": False,
     }
+    if triplet_weight > 0:
+        history["train_triplet_loss"] = train_triplet_history
+        history["val_triplet_loss"] = val_triplet_history
+    try:
+        import wandb
+    except ImportError:
+        wandb = None
     best_val_loss = float("inf")
     best_weights: dict[str, torch.Tensor] | None = None
     best_epoch = 0
@@ -346,6 +415,8 @@ def train_minibatch(
     for epoch in epoch_bar:
         model.train()
         total_train_loss = 0.0
+        total_train_triplet_loss = 0.0
+        total_active_triplets = 0
         total_examples = 0
         batch_bar = tqdm(
             train_loader,
@@ -361,30 +432,60 @@ def train_minibatch(
                 if ci_input_features is not None
                 else None
             )
-            logits = model(
-                batch, batch_ci_features, ci_features_mode
-            )[:seed_count]
+            if triplet_weight > 0:
+                logits, embeddings = model(
+                    batch, batch_ci_features, ci_features_mode,
+                    return_embeddings=True,
+                )
+                embeddings = embeddings[:seed_count]
+            else:
+                logits = model(batch, batch_ci_features, ci_features_mode)
+            logits = logits[:seed_count]
             labels = batch["incident"].y[:seed_count]
-            loss = F.cross_entropy(logits, labels)
+            ce_loss = F.cross_entropy(logits, labels)
+            if triplet_weight > 0:
+                triplet_loss, n_active = batch_triplet_loss(
+                    embeddings, labels, margin=triplet_margin
+                )
+            else:
+                triplet_loss, n_active = ce_loss.new_zeros(()), 0
+            loss = (1.0 - triplet_weight) * ce_loss + triplet_weight * triplet_loss
             optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             total_train_loss += float(loss.detach().item()) * seed_count
+            total_train_triplet_loss += float(triplet_loss.detach().item()) * seed_count
+            total_active_triplets += n_active
             total_examples += seed_count
         if total_examples == 0:
             raise ValueError("train_mask selects no incidents")
         train_loss = total_train_loss / total_examples
-        val_loss, val_acc = _evaluate_loader(
+        train_triplet_loss = total_train_triplet_loss / total_examples
+        val_loss, val_acc, val_triplet_loss, val_active_triplets = _evaluate_loader(
             model,
             val_loader,
             actual_device,
             ci_input_features,
             ci_features_mode,
+            triplet_weight,
+            triplet_margin,
         )
         train_loss_history.append(train_loss)
         val_loss_history.append(val_loss)
         val_acc_history.append(val_acc)
+        if triplet_weight > 0:
+            train_triplet_history.append(train_triplet_loss)
+            val_triplet_history.append(val_triplet_loss)
+            if wandb is not None and wandb.run is not None:
+                wandb.log(
+                    {
+                        "train_triplet_loss": train_triplet_loss,
+                        "val_triplet_loss": val_triplet_loss,
+                        "n_active_triplets": total_active_triplets + val_active_triplets,
+                    },
+                    step=epoch,
+                )
         if val_loss < (best_val_loss - min_delta):
             best_val_loss = val_loss
             best_weights = copy.deepcopy(model.state_dict())

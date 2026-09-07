@@ -1,0 +1,63 @@
+{
+  "sweep_name": "defD_lr_wd_v1",
+  "sweep_notes": "Definition D Phase 2: lr x weight_decay at best arch h256/do0.1, 5 seeds",
+  "timestamp_start": "2026-09-07T03:44:16.376197+00:00",
+  "git_commit": "c1a4867f4b3b26be724fe92b78f1b03225e3d65b",
+  "axes": {
+    "features": [
+      "concat"
+    ],
+    "entity_embed_dim": [
+      64
+    ],
+    "ci_dropout_rate": [
+      0.5
+    ],
+    "ci_dropout_mode": [
+      "embedding"
+    ],
+    "lr": [
+      0.0003,
+      0.0005,
+      0.001
+    ],
+    "weight_decay": [
+      0.0001,
+      0.0005,
+      0.001
+    ],
+    "hidden_dim": [
+      256
+    ],
+    "num_layers": [
+      2
+    ],
+    "dropout": [
+      0.1
+    ],
+    "seed": [
+      1,
+      2,
+      3,
+      42,
+      123
+    ],
+    "knn_edges": [
+      0
+    ],
+    "knn_scope": [
+      "all"
+    ]
+  },
+  "method": "grid",
+  "count": null,
+  "metric": {
+    "name": "unseen_map",
+    "goal": "maximize"
+  },
+  "epochs": 100,
+  "patience": 10,
+  "subtype": "raw",
+  "sweep_id": "vk1v453w",
+  "sweep_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/sweeps/vk1v453w"
+}

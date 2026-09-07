@@ -1,0 +1,62 @@
+{
+  "sweep_name": "knn_edges_v1",
+  "sweep_notes": "Text-kNN incident-to-incident edges, k in 0/5/10/25, 5 seeds",
+  "timestamp_start": "2026-09-03T18:00:05.721439+00:00",
+  "git_commit": "c1a4867f4b3b26be724fe92b78f1b03225e3d65b",
+  "axes": {
+    "features": [
+      "concat"
+    ],
+    "entity_embed_dim": [
+      64
+    ],
+    "ci_dropout_rate": [
+      0.5
+    ],
+    "ci_dropout_mode": [
+      "embedding"
+    ],
+    "lr": [
+      0.0005
+    ],
+    "weight_decay": [
+      0.0001
+    ],
+    "hidden_dim": [
+      128
+    ],
+    "num_layers": [
+      2
+    ],
+    "dropout": [
+      0.3
+    ],
+    "seed": [
+      1,
+      2,
+      3,
+      42,
+      123
+    ],
+    "knn_edges": [
+      0,
+      5,
+      10,
+      25
+    ],
+    "knn_scope": [
+      "all"
+    ]
+  },
+  "method": "grid",
+  "count": null,
+  "metric": {
+    "name": "unseen_map",
+    "goal": "maximize"
+  },
+  "epochs": 100,
+  "patience": 10,
+  "subtype": "raw",
+  "sweep_id": "mton2fbt",
+  "sweep_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/sweeps/mton2fbt"
+}
