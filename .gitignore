@@ -36,3 +36,4 @@ logs/
 data/
 results/*.npy
 results/*.npz
+wandb/
