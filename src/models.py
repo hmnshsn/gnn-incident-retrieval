@@ -14,6 +14,7 @@ from torch_geometric.loader import NeighborLoader
 from torch_geometric.nn import HeteroConv, SAGEConv
 from tqdm import tqdm
 
+from src.infonce_loss import compute_infonce_loss
 from src.triplet_loss import batch_triplet_loss
 
 
@@ -273,8 +274,10 @@ def _evaluate_loader(
     ci_features_mode: str = "learnable",
     triplet_weight: float = 0.0,
     triplet_margin: float = 0.2,
+    contrastive_loss: str = "triplet",
+    temperature: float = 0.07,
 ) -> tuple[float, float, float, int]:
-    """Compute validation loss, accuracy, and optional triplet metrics."""
+    """Compute validation loss, accuracy, and optional contrastive metrics."""
     model.eval()
     total_loss = 0.0
     total_triplet_loss = 0.0
@@ -302,14 +305,29 @@ def _evaluate_loader(
             labels = batch["incident"].y[:seed_count]
             ce_loss = F.cross_entropy(logits, labels)
             if triplet_weight > 0:
-                triplet_loss, n_active = batch_triplet_loss(
-                    embeddings, labels, margin=triplet_margin
-                )
+                if contrastive_loss == "triplet":
+                    contrastive_value, n_active = batch_triplet_loss(
+                        embeddings, labels, margin=triplet_margin
+                    )
+                else:
+                    contrastive_value = compute_infonce_loss(
+                        embeddings, labels, temperature=temperature
+                    )
+                    n_active = int(
+                        (
+                            (labels[:, None] == labels[None, :])
+                            & ~torch.eye(
+                                seed_count,
+                                dtype=torch.bool,
+                                device=labels.device,
+                            )
+                        ).any(dim=1).sum().item()
+                    )
             else:
-                triplet_loss, n_active = ce_loss.new_zeros(()), 0
-            loss = (1.0 - triplet_weight) * ce_loss + triplet_weight * triplet_loss
+                contrastive_value, n_active = ce_loss.new_zeros(()), 0
+            loss = (1.0 - triplet_weight) * ce_loss + triplet_weight * contrastive_value
             total_loss += float(loss.item()) * seed_count
-            total_triplet_loss += float(triplet_loss.item()) * seed_count
+            total_triplet_loss += float(contrastive_value.item()) * seed_count
             total_active_triplets += n_active
             total_correct += int((logits.argmax(dim=-1) == labels).sum().item())
             total_examples += seed_count
@@ -340,6 +358,8 @@ def train_minibatch(
     ci_features_mode: str = "learnable",
     triplet_weight: float = 0.0,
     triplet_margin: float = 0.2,
+    contrastive_loss: str = "triplet",
+    temperature: float = 0.07,
 ) -> tuple[HeteroIncidentClassifier, dict[str, object]]:
     """Train the classifier with sampled incident minibatches.
 
@@ -358,8 +378,10 @@ def train_minibatch(
         min_delta: Minimum validation-loss decrease counted as improvement.
         ci_input_features: Full CI feature matrix indexed by global node ID.
         ci_features_mode: CI feature assembly mode.
-        triplet_weight: Weight of triplet loss relative to cross-entropy.
+        triplet_weight: Weight of contrastive loss relative to cross-entropy.
         triplet_margin: Margin used by semi-hard triplet mining.
+        contrastive_loss: Contrastive loss type, ``triplet`` or ``infonce``.
+        temperature: InfoNCE temperature.
 
     Returns:
         The model restored to its best validation-loss state and a history
@@ -372,6 +394,10 @@ def train_minibatch(
         raise ValueError("patience must be positive and min_delta non-negative")
     if not 0 <= triplet_weight <= 1 or triplet_margin < 0:
         raise ValueError("triplet_weight must be in [0, 1] and triplet_margin non-negative")
+    if contrastive_loss not in {"triplet", "infonce"}:
+        raise ValueError("contrastive_loss must be triplet or infonce")
+    if temperature <= 0:
+        raise ValueError("temperature must be positive")
     neighbors = [15, 10] if num_neighbors is None else list(num_neighbors)
     if not neighbors or any(value < 0 for value in neighbors):
         raise ValueError("num_neighbors must contain non-negative values")
@@ -444,18 +470,33 @@ def train_minibatch(
             labels = batch["incident"].y[:seed_count]
             ce_loss = F.cross_entropy(logits, labels)
             if triplet_weight > 0:
-                triplet_loss, n_active = batch_triplet_loss(
-                    embeddings, labels, margin=triplet_margin
-                )
+                if contrastive_loss == "triplet":
+                    contrastive_value, n_active = batch_triplet_loss(
+                        embeddings, labels, margin=triplet_margin
+                    )
+                else:
+                    contrastive_value = compute_infonce_loss(
+                        embeddings, labels, temperature=temperature
+                    )
+                    n_active = int(
+                        (
+                            (labels[:, None] == labels[None, :])
+                            & ~torch.eye(
+                                seed_count,
+                                dtype=torch.bool,
+                                device=labels.device,
+                            )
+                        ).any(dim=1).sum().item()
+                    )
             else:
-                triplet_loss, n_active = ce_loss.new_zeros(()), 0
-            loss = (1.0 - triplet_weight) * ce_loss + triplet_weight * triplet_loss
+                contrastive_value, n_active = ce_loss.new_zeros(()), 0
+            loss = (1.0 - triplet_weight) * ce_loss + triplet_weight * contrastive_value
             optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             total_train_loss += float(loss.detach().item()) * seed_count
-            total_train_triplet_loss += float(triplet_loss.detach().item()) * seed_count
+            total_train_triplet_loss += float(contrastive_value.detach().item()) * seed_count
             total_active_triplets += n_active
             total_examples += seed_count
         if total_examples == 0:
@@ -470,22 +511,30 @@ def train_minibatch(
             ci_features_mode,
             triplet_weight,
             triplet_margin,
+            contrastive_loss,
+            temperature,
         )
         train_loss_history.append(train_loss)
         val_loss_history.append(val_loss)
         val_acc_history.append(val_acc)
+        epoch_metrics = {
+            "epoch": epoch,
+            "train_loss": train_loss,
+            "val_loss": val_loss,
+            "val_acc": val_acc,
+        }
         if triplet_weight > 0:
             train_triplet_history.append(train_triplet_loss)
             val_triplet_history.append(val_triplet_loss)
-            if wandb is not None and wandb.run is not None:
-                wandb.log(
-                    {
-                        "train_triplet_loss": train_triplet_loss,
-                        "val_triplet_loss": val_triplet_loss,
-                        "n_active_triplets": total_active_triplets + val_active_triplets,
-                    },
-                    step=epoch,
-                )
+            epoch_metrics.update(
+                {
+                    "train_triplet_loss": train_triplet_loss,
+                    "val_triplet_loss": val_triplet_loss,
+                    "n_active_triplets": total_active_triplets + val_active_triplets,
+                }
+            )
+        if wandb is not None and wandb.run is not None:
+            wandb.log(epoch_metrics, step=epoch)
         if val_loss < (best_val_loss - min_delta):
             best_val_loss = val_loss
             best_weights = copy.deepcopy(model.state_dict())
