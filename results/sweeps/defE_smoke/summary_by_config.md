@@ -1,0 +1,8 @@
+# defE_smoke by configuration
+
+Notes: 
+
+| config_label | n_seeds | seen_ndcg1 | unseen_ndcg1 | all_ndcg1 | best_epoch_mean |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| concat_embed64_drop0p5_embedding_lr0p0005_h256_l2_do0p2_s42_knn0a_tw0p7_tm0p3_ag | 1 | 0.910 ± 0.000 | 0.793 ± 0.000 | 0.891 ± 0.000 | 3.000 |
+| concat_embed64_drop0p5_embedding_lr0p0005_h256_l2_do0p2_s42_knn0a_ag | 1 | 0.913 ± 0.000 | 0.781 ± 0.000 | 0.891 ± 0.000 | 3.000 |

@@ -1,0 +1,69 @@
+{
+  "sweep_name": "defD_ag_reg_v1",
+  "sweep_notes": "Definition D ag=1 regularization: dropout sweep, 3 seeds",
+  "timestamp_start": "2026-09-07T09:03:43.152410+00:00",
+  "git_commit": "53fe9d52315c2e822ab1eed381b69b12ebd327d8",
+  "axes": {
+    "features": [
+      "concat"
+    ],
+    "entity_embed_dim": [
+      64
+    ],
+    "ci_dropout_rate": [
+      0.5
+    ],
+    "ci_dropout_mode": [
+      "embedding"
+    ],
+    "lr": [
+      0.0005
+    ],
+    "weight_decay": [
+      0.0001,
+      0.0005
+    ],
+    "hidden_dim": [
+      256
+    ],
+    "num_layers": [
+      2
+    ],
+    "dropout": [
+      0.1,
+      0.2,
+      0.3
+    ],
+    "triplet_weight": [
+      0.0
+    ],
+    "triplet_margin": [
+      0.2
+    ],
+    "add_assignment_group": [
+      1
+    ],
+    "seed": [
+      1,
+      42,
+      123
+    ],
+    "knn_edges": [
+      0
+    ],
+    "knn_scope": [
+      "all"
+    ]
+  },
+  "method": "grid",
+  "count": null,
+  "metric": {
+    "name": "unseen_map",
+    "goal": "maximize"
+  },
+  "epochs": 100,
+  "patience": 15,
+  "subtype": "raw",
+  "sweep_id": "ig9bxf6f",
+  "sweep_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/sweeps/ig9bxf6f"
+}

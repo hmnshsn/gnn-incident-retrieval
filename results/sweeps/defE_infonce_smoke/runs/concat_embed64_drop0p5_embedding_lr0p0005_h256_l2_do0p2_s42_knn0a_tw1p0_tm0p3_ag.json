@@ -1,0 +1,65 @@
+{
+  "config": {
+    "features": "concat",
+    "entity_embed_dim": 64,
+    "ci_dropout_rate": 0.5,
+    "ci_dropout_mode": "embedding",
+    "lr": 0.0005,
+    "weight_decay": 0.0001,
+    "hidden_dim": 256,
+    "num_layers": 2,
+    "dropout": 0.2,
+    "triplet_weight": 1.0,
+    "triplet_margin": 0.3,
+    "contrastive_loss": "triplet",
+    "temperature": 0.07,
+    "add_assignment_group": true,
+    "relevance_def": "E",
+    "seed": 42,
+    "knn_edges": 0,
+    "knn_scope": "all"
+  },
+  "input_dim": 768,
+  "epochs_trained": 3,
+  "best_epoch": 3,
+  "best_val_loss": 0.3064296834249317,
+  "stopped_early": false,
+  "train_loss_history": [
+    0.33298165638216703,
+    0.32261512415303367,
+    0.3140892468937505
+  ],
+  "val_loss_history": [
+    0.33898720804617266,
+    0.32785832070998516,
+    0.3064296834249317
+  ],
+  "val_acc_history": [
+    0.060467246907924876,
+    0.05806229958772332,
+    0.058176820888685296
+  ],
+  "results": {
+    "seen": {
+      "ndcg@1": 0.9196085353416523,
+      "ndcg@5": 0.8902980038180126,
+      "map": 0.5236295291572486,
+      "mrr": 0.9714686070057283
+    },
+    "unseen": {
+      "ndcg@1": 0.796641361858753,
+      "ndcg@5": 0.7923772903167833,
+      "map": 0.37975957677538613,
+      "mrr": 0.8036886587739102
+    },
+    "all": {
+      "ndcg@1": 0.899205531290728,
+      "ndcg@5": 0.8740507676032769,
+      "map": 0.4997582866287567,
+      "mrr": 0.9436301614557564
+    }
+  },
+  "run_duration_sec": 112.97139647498261,
+  "wandb_run_id": "ixubldwf",
+  "wandb_run_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/runs/ixubldwf"
+}

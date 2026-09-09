@@ -1,0 +1,76 @@
+{
+  "sweep_name": "defE_epocheval_smoke",
+  "sweep_notes": "",
+  "timestamp_start": "2026-09-08T08:36:46.606913+00:00",
+  "git_commit": "53fe9d52315c2e822ab1eed381b69b12ebd327d8",
+  "axes": {
+    "features": [
+      "concat"
+    ],
+    "entity_embed_dim": [
+      64
+    ],
+    "ci_dropout_rate": [
+      0.5
+    ],
+    "ci_dropout_mode": [
+      "embedding"
+    ],
+    "lr": [
+      0.0005
+    ],
+    "weight_decay": [
+      0.0001
+    ],
+    "hidden_dim": [
+      256
+    ],
+    "num_layers": [
+      2
+    ],
+    "dropout": [
+      0.2
+    ],
+    "triplet_weight": [
+      1.0
+    ],
+    "triplet_margin": [
+      0.3
+    ],
+    "contrastive_loss": [
+      "triplet"
+    ],
+    "temperature": [
+      0.07
+    ],
+    "add_assignment_group": [
+      1
+    ],
+    "relevance_def": [
+      "E"
+    ],
+    "eval_every_epoch": [
+      true
+    ],
+    "seed": [
+      42
+    ],
+    "knn_edges": [
+      0
+    ],
+    "knn_scope": [
+      "all"
+    ]
+  },
+  "method": "grid",
+  "count": null,
+  "metric": {
+    "name": "unseen_ndcg1",
+    "goal": "maximize"
+  },
+  "epochs": 3,
+  "patience": 10,
+  "subtype": "raw",
+  "sweep_id": "ncoe2isv",
+  "sweep_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/sweeps/ncoe2isv"
+}

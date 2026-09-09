@@ -1,0 +1,110 @@
+=== DATA SUMMARY ===
+Loader rows: 59151
+Filtered rows: 58216
+Embedding shape: (59151, 384)
+Aligned embedding shape: (58216, 384)
+Train rows: 40751
+Validation rows: 8732
+Test rows: 8733
+Closure classes: 25
+Missing categorical columns filled with MISSING: none
+
+=== CLASS DISTRIBUTION ===
+Label  Closure Code                          Train    Test  Train %
+    3  Auto Resolved                         12807    2287   31.43%
+   24  Workaround                             7253    1745   17.80%
+   10  Education                              6968    1451   17.10%
+    8  Data Corrected                         3266     803    8.01%
+    5  Caller has confirmed to mark as cancelled    1299     230    3.19%
+   22  Reset/Rebooted                         1207     221    2.96%
+   17  Permanent Fix                          1127     448    2.77%
+   12  False automated event mark as cancelled     996     224    2.44%
+   21  Request/Inquiry                         994     272    2.44%
+   13  Fixed Code                              983     215    2.41%
+    9  Duplicate Incident                      662     106    1.62%
+   14  Hardware Repaired/Replaced              613     142    1.50%
+    7  Changed Configuration                   442      98    1.08%
+   15  No issue found INC cancelled            439     119    1.08%
+   11  Enhancement                             391      87    0.96%
+   18  Permissions Changed                     379     109    0.93%
+    2  Account Enabled/Unlocked                369      82    0.91%
+    6  Capacity Added                          272      50    0.67%
+   23  Third Party/Carrier                      95      13    0.23%
+   19  Reimaged/Rebuilt                         90      23    0.22%
+    1  AI Detected User Resolved                67       0    0.16%
+   20  Remigrated/Reapplied Code                16       5    0.04%
+   16  Node Fail-over                            8       2    0.02%
+    4  CNS Fixed the INT                         7       1    0.02%
+    0   Fixed Code                               1       0    0.00%
+Majority class baseline accuracy: 0.2619 (always predict 3: Auto Resolved)
+
+=== LOGISTIC REGRESSION: TEXT FEATURES ===
+Train accuracy: 0.5162
+Test accuracy: 0.4316
+Top-3 accuracy: 0.7217
+Top-5 accuracy: 0.8422
+
+=== LOGISTIC REGRESSION: CATEGORICAL FEATURES ===
+Train accuracy: 0.5349
+Test accuracy: 0.4426
+
+=== LOGISTIC REGRESSION: CONCAT FEATURES ===
+Train accuracy: 0.5782
+Test accuracy: 0.4705
+Top-3 accuracy: 0.7496
+Top-5 accuracy: 0.8589
+
+=== RANDOM FOREST: CONCAT FEATURES ===
+Train accuracy: 0.9931
+Test accuracy: 0.4459
+
+=== BEST MODEL ===
+Model: Logistic Regression (concat)
+Test accuracy: 0.4705
+
+=== PER-CLASS METRICS ===
+                                           precision    recall  f1-score   support
+
+                               Fixed Code       0.00      0.00      0.00         0
+                AI Detected User Resolved       0.00      0.00      0.00         0
+                 Account Enabled/Unlocked       0.42      0.06      0.11        82
+                            Auto Resolved       0.59      0.67      0.63      2287
+                        CNS Fixed the INT       0.00      0.00      0.00         1
+Caller has confirmed to mark as cancelled       0.50      0.08      0.14       230
+                           Capacity Added       0.33      0.02      0.04        50
+                    Changed Configuration       0.06      0.03      0.04        98
+                           Data Corrected       0.56      0.59      0.57       803
+                       Duplicate Incident       0.29      0.07      0.11       106
+                                Education       0.40      0.55      0.47      1451
+                              Enhancement       0.67      0.28      0.39        87
+  False automated event mark as cancelled       0.77      0.81      0.79       224
+                               Fixed Code       0.30      0.24      0.27       215
+               Hardware Repaired/Replaced       0.43      0.44      0.43       142
+             No issue found INC cancelled       0.00      0.00      0.00       119
+                           Node Fail-over       0.00      0.00      0.00         2
+                            Permanent Fix       0.44      0.11      0.18       448
+                      Permissions Changed       0.43      0.21      0.28       109
+                         Reimaged/Rebuilt       0.00      0.00      0.00        23
+                Remigrated/Reapplied Code       0.00      0.00      0.00         5
+                          Request/Inquiry       0.36      0.18      0.24       272
+                           Reset/Rebooted       0.30      0.11      0.16       221
+                      Third Party/Carrier       0.17      0.08      0.11        13
+                               Workaround       0.36      0.46      0.40      1745
+
+                                 accuracy                           0.47      8733
+                                macro avg       0.30      0.20      0.21      8733
+                             weighted avg       0.46      0.47      0.44      8733
+
+=== TOP-10 CONFUSION PAIRS ===
+True: Workaround -> Pred: Auto Resolved | count=414 (23.72% of class Workaround)
+True: Auto Resolved -> Pred: Education | count=317 (13.86% of class Auto Resolved)
+True: Auto Resolved -> Pred: Workaround | count=298 (13.03% of class Auto Resolved)
+True: Education -> Pred: Workaround | count=288 (19.85% of class Education)
+True: Workaround -> Pred: Education | count=272 (15.59% of class Workaround)
+True: Permanent Fix -> Pred: Workaround | count=213 (47.54% of class Permanent Fix)
+True: Workaround -> Pred: Data Corrected | count=162 (9.28% of class Workaround)
+True: Education -> Pred: Auto Resolved | count=136 (9.37% of class Education)
+True: Data Corrected -> Pred: Workaround | count=123 (15.32% of class Data Corrected)
+True: Data Corrected -> Pred: Education | count=110 (13.70% of class Data Corrected)
+
+Output saved to: results/classification_diagnostics.txt

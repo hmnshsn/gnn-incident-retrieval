@@ -1,0 +1,63 @@
+{
+  "config": {
+    "features": "concat",
+    "entity_embed_dim": 64,
+    "ci_dropout_rate": 0.5,
+    "ci_dropout_mode": "embedding",
+    "lr": 0.0005,
+    "weight_decay": 0.0001,
+    "hidden_dim": 256,
+    "num_layers": 2,
+    "dropout": 0.2,
+    "triplet_weight": 0.0,
+    "triplet_margin": 0.3,
+    "add_assignment_group": true,
+    "relevance_def": "E",
+    "seed": 42,
+    "knn_edges": 0,
+    "knn_scope": "all"
+  },
+  "input_dim": 768,
+  "epochs_trained": 3,
+  "best_epoch": 3,
+  "best_val_loss": 1.498975686124853,
+  "stopped_early": false,
+  "train_loss_history": [
+    2.159886546607211,
+    1.5885233682245277,
+    1.4506895671092421
+  ],
+  "val_loss_history": [
+    1.7139768530565611,
+    1.570305795610579,
+    1.498975686124853
+  ],
+  "val_acc_history": [
+    0.4635822262940907,
+    0.5035501603298214,
+    0.521759047182776
+  ],
+  "results": {
+    "seen": {
+      "ndcg@1": 0.9125872754373605,
+      "ndcg@5": 0.8821530196149959,
+      "map": 0.5035258593546588,
+      "mrr": 0.9660286234022649
+    },
+    "unseen": {
+      "ndcg@1": 0.781458477110651,
+      "ndcg@5": 0.7722216154902508,
+      "map": 0.33545454516888357,
+      "mrr": 0.7977289598576032
+    },
+    "all": {
+      "ndcg@1": 0.890830075302767,
+      "ndcg@5": 0.8639129412253514,
+      "map": 0.47563906967697783,
+      "mrr": 0.9381039454592652
+    }
+  },
+  "run_duration_sec": 112.73029232799308,
+  "wandb_run_id": "ajxu92fs",
+  "wandb_run_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/runs/ajxu92fs"
+}

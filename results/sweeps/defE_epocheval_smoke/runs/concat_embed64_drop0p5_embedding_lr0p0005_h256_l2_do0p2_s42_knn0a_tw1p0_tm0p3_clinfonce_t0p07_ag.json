@@ -1,0 +1,99 @@
+{
+  "config": {
+    "features": "concat",
+    "entity_embed_dim": 64,
+    "ci_dropout_rate": 0.5,
+    "ci_dropout_mode": "embedding",
+    "lr": 0.0005,
+    "weight_decay": 0.0001,
+    "hidden_dim": 256,
+    "num_layers": 2,
+    "dropout": 0.2,
+    "triplet_weight": 1.0,
+    "triplet_margin": 0.3,
+    "contrastive_loss": "infonce",
+    "temperature": 0.07,
+    "add_assignment_group": true,
+    "relevance_def": "E",
+    "eval_every_epoch": true,
+    "seed": 42,
+    "knn_edges": 0,
+    "knn_scope": "all"
+  },
+  "input_dim": 768,
+  "epochs_trained": 3,
+  "best_epoch": 3,
+  "best_val_loss": 1.29587906579932,
+  "stopped_early": false,
+  "train_loss_history": [
+    1.6302921019467291,
+    1.543121589198118,
+    1.4757681473735293
+  ],
+  "val_loss_history": [
+    1.382927959302779,
+    1.3303988968293927,
+    1.29587906579932
+  ],
+  "val_acc_history": [
+    0.07409528172240036,
+    0.05840586349060925,
+    0.09012826385707742
+  ],
+  "retrieval_history": [
+    {
+      "epoch": 1,
+      "seen_ndcg1": 0.9293167019690932,
+      "seen_mrr": 0.9733562681972577,
+      "seen_map": 0.6030120101720187,
+      "unseen_ndcg1": 0.7883597883597883,
+      "unseen_mrr": 0.796848442545457,
+      "unseen_map": 0.4203697107605215,
+      "all_ndcg1": 0.9059287977185626
+    },
+    {
+      "epoch": 2,
+      "seen_ndcg1": 0.9337883423550668,
+      "seen_mrr": 0.9732370770568102,
+      "seen_map": 0.5883336908689193,
+      "unseen_ndcg1": 0.7842190016103061,
+      "unseen_mrr": 0.7947071962007078,
+      "unseen_map": 0.34956036146416924,
+      "all_ndcg1": 0.908971443839189
+    },
+    {
+      "epoch": 3,
+      "seen_ndcg1": 0.9393582803797002,
+      "seen_mrr": 0.9756789404555021,
+      "seen_map": 0.5387971126917164,
+      "unseen_ndcg1": 0.771796641361859,
+      "unseen_mrr": 0.7840107912833276,
+      "unseen_map": 0.30829856981373055,
+      "all_ndcg1": 0.9115560572104737
+    }
+  ],
+  "results": {
+    "seen": {
+      "ndcg@1": 0.9397505295363643,
+      "ndcg@5": 0.9226081387887775,
+      "map": 0.5390062424815713,
+      "mrr": 0.975867591506335
+    },
+    "unseen": {
+      "ndcg@1": 0.771796641361859,
+      "ndcg@5": 0.7408521763727952,
+      "map": 0.30846214653478904,
+      "mrr": 0.7841155413342682
+    },
+    "all": {
+      "ndcg@1": 0.9118832234600033,
+      "ndcg@5": 0.8924507599337722,
+      "map": 0.5007538212028713,
+      "mrr": 0.9440516381455971
+    }
+  },
+  "first_retrieval_eval_sec": 110.80218821100425,
+  "run_duration_sec": 445.265102475998,
+  "wandb_run_id": "n97g0qwv",
+  "wandb_run_url": "https://wandb.ai/himanshu-pal-snow-/gnn-incident-retrieval/runs/n97g0qwv"
+}
