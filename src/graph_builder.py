@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import logging
 from typing import Any
 
 import numpy as np
@@ -10,6 +11,9 @@ import pandas as pd
 import torch
 from sentence_transformers import SentenceTransformer
 from torch_geometric.data import HeteroData
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 _NODE_COLUMNS: dict[str, str] = {
@@ -37,14 +41,16 @@ _EDGE_SPECS: tuple[tuple[str, str, str, str, str], ...] = (
 
 def _incident_texts(df: pd.DataFrame) -> list[str]:
     """Build robust incident text from available descriptive columns."""
+    # Categorical columns for SentenceTransformer encoding
+    # Verified against actual df columns 2026-09-07
     columns = [
-        "CI Type (aff)",
+        "contact_type",
         "CI Subtype (aff)",
         "Category",
-        "Priority",
-        "Impact",
-        "Urgency",
-        "Service Component WBS",
+        "priority",
+        "impact",
+        "urgency",
+        "business_service",
     ]
     available = [column for column in columns if column in df.columns]
     if not available:
@@ -84,6 +90,7 @@ def build_incident_graph_no_target(
     df: pd.DataFrame,
     text_model_name: str = "all-MiniLM-L6-v2",
     incident_features: np.ndarray | torch.Tensor | None = None,
+    add_assignment_group: bool = False,
 ) -> HeteroData:
     """Build a heterogeneous incident graph without closure-code targets.
 
@@ -100,6 +107,7 @@ def build_incident_graph_no_target(
         incident_features: Optional precomputed incident feature matrix with
             one row per incident. If omitted, default feature computation is
             used unchanged.
+        add_assignment_group: Whether to add assignment-group nodes and edges.
 
     Returns:
         A CPU-resident PyG HeteroData object suitable for NeighborLoader.
@@ -107,6 +115,8 @@ def build_incident_graph_no_target(
     if df.empty:
         raise ValueError("df must contain at least one incident")
     required = {"Closure Code", "CI Name (aff)"}
+    if add_assignment_group:
+        required.add("assignment_group")
     missing = required - set(df.columns)
     if missing:
         raise KeyError(f"Missing required columns: {sorted(missing)}")
@@ -117,6 +127,10 @@ def build_incident_graph_no_target(
             mapping = _entity_mapping(df[column])
             if mapping:
                 mappings[node_type] = mapping
+    if add_assignment_group:
+        mapping = _entity_mapping(df["assignment_group"])
+        if mapping:
+            mappings["assignment_group"] = mapping
 
     closure_mapping = _entity_mapping(df["Closure Code"])
     if not closure_mapping:
@@ -151,7 +165,19 @@ def build_incident_graph_no_target(
     for node_type, mapping in mappings.items():
         data[node_type].x = torch.randn(len(mapping), input_dim)
 
-    for source, relation, target, column, reverse_relation in _EDGE_SPECS:
+    edge_specs = _EDGE_SPECS
+    if add_assignment_group:
+        edge_specs += (
+            (
+                "incident",
+                "assigned_to",
+                "assignment_group",
+                "assignment_group",
+                "rev_assigned_to",
+            ),
+        )
+    assignment_edge_count = 0
+    for source, relation, target, column, reverse_relation in edge_specs:
         if target not in mappings or column not in df.columns:
             continue
         edge_index = _make_edges(df, column, mappings[target])
@@ -159,7 +185,15 @@ def build_incident_graph_no_target(
             continue
         data[(source, relation, target)].edge_index = edge_index
         data[(target, reverse_relation, source)].edge_index = edge_index.flip(0)
+        if target == "assignment_group":
+            assignment_edge_count = edge_index.size(1) * 2
 
+    if add_assignment_group:
+        _LOGGER.info(
+            "Added assignment_group nodes=%d bidirectional_edges=%d",
+            data["assignment_group"].num_nodes if "assignment_group" in data.node_types else 0,
+            assignment_edge_count,
+        )
     return data
 
 
