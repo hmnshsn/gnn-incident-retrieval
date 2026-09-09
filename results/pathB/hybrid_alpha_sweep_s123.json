@@ -1,0 +1,102 @@
+{
+  "config": {
+    "epochs": 50,
+    "seed": 123,
+    "device": "cuda:0",
+    "patience": 10,
+    "temperature": 0.07,
+    "lr": 0.0005,
+    "weight_decay": 0.0001,
+    "entity_embed_dim": 64,
+    "ci_dropout_rate": 0.5,
+    "hidden_dim": 256,
+    "num_layers": 2,
+    "dropout": 0.2,
+    "features": "concat",
+    "batch_size": 1024,
+    "num_neighbors": [
+      15,
+      10
+    ]
+  },
+  "alpha_sweep_val": [
+    {
+      "alpha": 0.0,
+      "top1_match": 0.440105359596885,
+      "top5_match": 0.7212551534585433
+    },
+    {
+      "alpha": 0.1,
+      "top1_match": 0.46232249198350894,
+      "top5_match": 0.7258360054970224
+    },
+    {
+      "alpha": 0.2,
+      "top1_match": 0.4695373339441136,
+      "top5_match": 0.7240036646816308
+    },
+    {
+      "alpha": 0.30000000000000004,
+      "top1_match": 0.4734310581768209,
+      "top5_match": 0.7189647274393037
+    },
+    {
+      "alpha": 0.4,
+      "top1_match": 0.47354557947778286,
+      "top5_match": 0.7166743014200642
+    },
+    {
+      "alpha": 0.5,
+      "top1_match": 0.4770957398076042,
+      "top5_match": 0.7115208428767751
+    },
+    {
+      "alpha": 0.6000000000000001,
+      "top1_match": 0.47961520842876776,
+      "top5_match": 0.7080852038479157
+    },
+    {
+      "alpha": 0.7000000000000001,
+      "top1_match": 0.4827072835547412,
+      "top5_match": 0.711749885478699
+    },
+    {
+      "alpha": 0.8,
+      "top1_match": 0.48614292258360053,
+      "top5_match": 0.7109482363719651
+    },
+    {
+      "alpha": 0.9,
+      "top1_match": 0.4832798900595511,
+      "top5_match": 0.7107191937700412
+    },
+    {
+      "alpha": 1.0,
+      "top1_match": 0.472858451672011,
+      "top5_match": 0.7067109482363719
+    }
+  ],
+  "best_alpha": 0.8,
+  "test_results": {
+    "text-only": {
+      "top1_match": 0.39333562349708007,
+      "top5_match": 0.6780029772128707,
+      "mean_cosine": 0.3540987968444824
+    },
+    "gnn-only": {
+      "top1_match": 0.4336425054391389,
+      "top5_match": 0.6828123210809572,
+      "mean_cosine": 0.5428240299224854
+    },
+    "hybrid": {
+      "top1_match": 0.44967365166609413,
+      "top5_match": 0.6886522386350624,
+      "mean_cosine": 0.5321850776672363
+    }
+  },
+  "gnn_training": {
+    "epochs_trained": 45,
+    "best_epoch": 35,
+    "best_val_loss": 3.7399006154802112
+  }
+}
