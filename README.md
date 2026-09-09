@@ -71,6 +71,38 @@ Definition E grades retrieval by problem similarity without closure-code gating:
 
 Training on closure codes degrades unseen retrieval from epoch 1 onward. Confirmed on ServiceNow (58k incidents) and BPI 2014 (46k incidents).
 
+## Path B: Resolution Prediction
+
+Train GNN/MLP to predict `u_resolution` embeddings (384-dim) instead of closure codes. Evaluate by retrieving nearest train incidents in resolution embedding space.
+
+**4-config comparison (seed 42, 50 epochs, early stopping patience 10):**
+
+| Loss | Head | Model | Res Cosine | Top-1 Code | Top-5 Code |
+|------|------|-------|------------|------------|------------|
+| -- | -- | Text-only | 0.480 | 0.392 | 0.679 |
+| cosine | linear | MLP | 0.648 | 0.378 | 0.607 |
+| cosine | linear | GNN | 0.645 | 0.414 | 0.638 |
+| cosine | proj | MLP | 0.642 | 0.378 | 0.599 |
+| cosine | proj | GNN | 0.644 | 0.417 | 0.643 |
+| infonce | linear | MLP | 0.391 | 0.384 | 0.643 |
+| infonce | linear | GNN | 0.400 | 0.434 | 0.683 |
+| infonce | proj | MLP | 0.378 | 0.370 | 0.631 |
+| infonce | proj | GNN | 0.393 | 0.429 | 0.682 |
+
+**3-seed confirmation (InfoNCE + linear, seeds 42/1/123):**
+
+| Model | Res Cosine | Top-1 Code Match | Top-5 Code Match |
+|-------|------------|------------------|------------------|
+| Text-only | 0.480 | 0.392 | 0.679 |
+| MLP | 0.391 +/- 0.001 | 0.382 +/- 0.002 | 0.641 +/- 0.002 |
+| GNN | 0.395 +/- 0.004 | 0.430 +/- 0.005 | 0.678 +/- 0.003 |
+
+Key findings:
+- Projection head adds nothing over linear. Clean negative result.
+- InfoNCE and cosine loss optimize different objectives: cosine maximizes resolution semantic similarity; InfoNCE maximizes retrieval discrimination.
+- GNN beats MLP on closure code match across all configs (+0.036 to +0.059 top-1). Graph structural bias through CI nodes contributes real signal.
+- InfoNCE + GNN + linear is the best config: 0.430 top-1 code match (+9.7% relative over text-only).
+
 ## Resolution Coverage (ServiceNow, Seen CIs)
 
 | Metric | Value |
