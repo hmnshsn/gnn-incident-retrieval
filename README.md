@@ -103,6 +103,38 @@ Key findings:
 - GNN beats MLP on closure code match across all configs (+0.036 to +0.059 top-1). Graph structural bias through CI nodes contributes real signal.
 - InfoNCE + GNN + linear is the best config: 0.430 top-1 code match (+9.7% relative over text-only).
 
+### Hybrid Retrieval (Text + GNN Resolution Fusion)
+
+Fuse short_description text similarity with GNN-predicted resolution similarity:
+
+```text
+score = alpha * gnn_resolution_sim + (1 - alpha) * text_description_sim
+```
+
+Alpha tuned on val set (best alpha: 0.8-0.9 across seeds).
+
+**3-seed results (seeds 42/1/123, 50 epochs, early stopping patience 10):**
+
+| Model | Top-1 Code Match | Top-5 Code Match |
+|-------|------------------|------------------|
+| Text-only | 0.393 | 0.678 |
+| GNN-only (InfoNCE) | 0.431 +/- 0.006 | 0.681 +/- 0.006 |
+| Hybrid (alpha=0.8-0.9) | 0.445 +/- 0.007 | 0.685 +/- 0.004 |
+
+**Val alpha sweep (mean top-1 code match across 3 seeds):**
+
+| Alpha | Val Top-1 |
+|-------|-----------|
+| 0.0 (text-only) | 0.440 |
+| 0.2 | 0.466 |
+| 0.5 | 0.471 |
+| 0.7 | 0.473 |
+| 0.8 | 0.477 |
+| 0.9 | 0.479 |
+| 1.0 (GNN-only) | 0.473 |
+
+Hybrid achieves best top-1 code match (+13.2% relative over text-only) and best top-5 code match simultaneously.
+
 ## Resolution Coverage (ServiceNow, Seen CIs)
 
 | Metric | Value |
