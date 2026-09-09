@@ -1,0 +1,9 @@
+{
+  "eval_metrics": {
+    "mean_cosine": 0.47947871685028076,
+    "median_cosine": 0.439034640789032,
+    "std_cosine": 0.2603871524333954,
+    "top1_closure_match": 0.3921905416237261,
+    "top5_closure_match": 0.6784610099622123
+  }
+}
