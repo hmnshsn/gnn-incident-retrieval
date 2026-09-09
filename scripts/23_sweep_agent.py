@@ -44,6 +44,11 @@ def build_sweep_config(args: argparse.Namespace) -> dict:
             "dropout": {"values": [float(v) for v in args.dropouts]},
             "triplet_weight": {"values": [float(v) for v in args.triplet_weights]},
             "triplet_margin": {"values": [float(v) for v in args.triplet_margins]},
+            "contrastive_loss": {"values": [str(v) for v in args.contrastive_loss]},
+            "temperature": {"values": [float(v) for v in args.temperatures]},
+            "add_assignment_group": {"values": [int(v) for v in args.add_assignment_group]},
+            "relevance_def": {"values": [str(v) for v in args.relevance_def]},
+            "eval_every_epoch": {"values": [bool(args.eval_every_epoch)]},
             "seed": {"values": [int(v) for v in args.seeds]},
             "knn_edges": {"values": [int(v) for v in args.knn_edges]},
             "knn_scope": {"values": [str(v) for v in args.knn_scopes]},
@@ -67,7 +72,8 @@ def make_train_fn(args: argparse.Namespace, git_commit: str | None):
                     "features", "entity_embed_dim", "ci_dropout_rate",
                     "ci_dropout_mode", "lr", "weight_decay", "hidden_dim",
                     "num_layers", "dropout", "triplet_weight", "triplet_margin",
-                    "seed", "knn_edges", "knn_scope",
+                    "contrastive_loss", "temperature", "add_assignment_group",
+                    "relevance_def", "eval_every_epoch", "seed", "knn_edges", "knn_scope",
                 )
             }
             run_name = build_run_name(config)
@@ -104,11 +110,27 @@ def _add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--dropouts", nargs="+", type=float, default=[0.3])
     parser.add_argument("--triplet-weights", nargs="+", type=float, default=[0.0])
     parser.add_argument("--triplet-margins", nargs="+", type=float, default=[0.2])
+    parser.add_argument(
+        "--contrastive-loss",
+        nargs="+",
+        choices=["triplet", "infonce"],
+        default=["triplet"],
+    )
+    parser.add_argument("--temperatures", nargs="+", type=float, default=[0.07])
+    parser.add_argument(
+        "--add-assignment-group",
+        nargs="+",
+        type=int,
+        default=[0],
+        help="Whether to add assignment_group as graph node (0=no, 1=yes)",
+    )
+    parser.add_argument("--relevance-def", nargs="+", choices=["D", "E"], default=["D"])
+    parser.add_argument("--eval-every-epoch", action="store_true")
     parser.add_argument("--weight-decays", nargs="+", type=float, default=[1e-4])
     parser.add_argument("--seeds", nargs="+", type=int, default=[42])
     parser.add_argument("--knn-edges", nargs="+", type=int, default=[0])
     parser.add_argument("--knn-scopes", nargs="+", choices=["all", "unseen_only"], default=["all"])
-    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--epochs", "--max-epochs", dest="epochs", type=int, default=100)
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--subtype", choices=["raw", "imputed", "none"], default="raw")
     parser.add_argument("--method", choices=["grid", "random", "bayes"], default="grid")

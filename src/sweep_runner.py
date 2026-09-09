@@ -34,7 +34,7 @@ from src.graph_builder import build_incident_graph_no_target, make_split_masks
 from src.impute_subcategory import impute_subcategory
 from src.logging_config import setup_logging
 from src.models import HeteroIncidentClassifier, extract_incident_embeddings, train_minibatch
-from src.relevance import compute_relevance_matrix
+from src.relevance import compute_relevance_matrix, compute_relevance_matrix_e
 
 
 BATCH_SIZE = 1024
@@ -86,9 +86,17 @@ def _evaluate_group(
     dataframe: pd.DataFrame,
     train_indices: np.ndarray,
     test_indices: np.ndarray,
+    relevance_definition: str = "D",
 ) -> dict[str, float]:
     """Evaluate one test CI-visibility group against all train candidates."""
-    relevance = compute_relevance_matrix(dataframe, train_indices, test_indices)
+    if relevance_definition == "D":
+        relevance = compute_relevance_matrix(
+            dataframe, train_indices, test_indices, definition="D"
+        )
+    elif relevance_definition == "E":
+        relevance = compute_relevance_matrix_e(dataframe, train_indices, test_indices)
+    else:
+        raise ValueError("relevance_definition must be 'D' or 'E'")
     query = embeddings[test_indices]
     candidates = embeddings[train_indices]
     query_norm = np.linalg.norm(query, axis=1, keepdims=True)
@@ -108,6 +116,34 @@ def _evaluate_group(
         "map": metrics["MAP"],
         "mrr": metrics["MRR"],
     }
+
+
+def _evaluate_retrieval_groups(
+    embeddings: np.ndarray,
+    dataframe: pd.DataFrame,
+    train_indices: np.ndarray,
+    test_indices: np.ndarray,
+    seen_test_indices: np.ndarray,
+    unseen_test_indices: np.ndarray,
+    relevance_definition: str,
+) -> dict[str, dict[str, float]]:
+    """Evaluate retrieval metrics for seen, unseen, and all test groups."""
+    results: dict[str, dict[str, float]] = {}
+    for group_name, group_indices in (
+        ("seen", seen_test_indices),
+        ("unseen", unseen_test_indices),
+        ("all", test_indices),
+    ):
+        if len(group_indices) == 0:
+            continue
+        results[group_name] = _evaluate_group(
+            embeddings,
+            dataframe,
+            train_indices,
+            group_indices,
+            relevance_definition=relevance_definition,
+        )
+    return results
 
 
 def _training_ci_indices(data: HeteroData, train_indices: np.ndarray) -> set[int]:
@@ -143,6 +179,7 @@ def build_graph_for_features(
     knn_scope: str = "all",
     train_indices: np.ndarray | None = None,
     unseen_test_indices: np.ndarray | None = None,
+    add_assignment_group: bool = False,
 ) -> HeteroData:
     """Build incident graph for one feature mode and optional text kNN edges."""
     if knn_edges < 0:
@@ -150,13 +187,21 @@ def build_graph_for_features(
     if knn_scope not in {"all", "unseen_only"}:
         raise ValueError("knn_scope must be all or unseen_only")
     if features == "categorical" and knn_edges == 0:
-        return build_incident_graph_no_target(dataframe)
+        return build_incident_graph_no_target(
+            dataframe, add_assignment_group=add_assignment_group
+        )
     if text_embeddings is None:
         raise ValueError("text embeddings required for text, concat, and kNN features")
     if features == "text":
-        data = build_incident_graph_no_target(dataframe, incident_features=text_embeddings)
+        data = build_incident_graph_no_target(
+            dataframe,
+            incident_features=text_embeddings,
+            add_assignment_group=add_assignment_group,
+        )
     elif features == "concat":
-        data = build_incident_graph_no_target(dataframe)
+        data = build_incident_graph_no_target(
+            dataframe, add_assignment_group=add_assignment_group
+        )
         base_features = data["incident"].x
         if base_features.size(0) != text_embeddings.shape[0]:
             raise ValueError("base and text feature row counts do not match")
@@ -164,7 +209,9 @@ def build_graph_for_features(
             [base_features, torch.as_tensor(text_embeddings, dtype=torch.float32)], dim=1
         )
     else:
-        data = build_incident_graph_no_target(dataframe)
+        data = build_incident_graph_no_target(
+            dataframe, add_assignment_group=add_assignment_group
+        )
     if knn_edges > 0:
         if train_indices is None:
             raise ValueError("train_indices required for kNN edges")
@@ -214,6 +261,7 @@ def get_shared_context(
     needed_features: Iterable[str],
     knn_edges: int = 0,
     knn_scope: str = "all",
+    add_assignment_group: bool = False,
 ) -> dict:
     """Prepare and cache dataframe, splits, masks, and requested feature graphs."""
     requested = list(dict.fromkeys(needed_features))
@@ -252,7 +300,7 @@ def get_shared_context(
             context["graph_row_indices"]
         ]
     for features in requested:
-        graph_key = (features, knn_edges, knn_scope)
+        graph_key = (features, knn_edges, knn_scope, add_assignment_group)
         if graph_key not in context["graphs"]:
             graph = build_graph_for_features(
                 features,
@@ -262,6 +310,7 @@ def get_shared_context(
                 knn_scope=knn_scope,
                 train_indices=context["train_indices"],
                 unseen_test_indices=context["unseen_test_indices"],
+                add_assignment_group=add_assignment_group,
             )
             context["graphs"][graph_key] = graph
             _LOGGER.info(
@@ -295,7 +344,11 @@ def build_run_name(config: Mapping[str, object]) -> str:
     if triplet_weight > 0:
         run_name += (
             f"_tw{clean(triplet_weight)}_tm{clean(config.get('triplet_margin', 0.2))}"
+            f"_cl{config.get('contrastive_loss', 'triplet')}"
+            f"_t{clean(config.get('temperature', 0.07))}"
         )
+    if bool(config.get("add_assignment_group", False)):
+        run_name += "_ag"
     assert "/" not in run_name and "\\" not in run_name
     assert not any(character.isspace() for character in run_name)
     return run_name
@@ -325,22 +378,54 @@ def run_one(
     triplet_margin = float(
         wandb.config.get("triplet_margin", config.get("triplet_margin", 0.2))
     )
+    contrastive_loss = str(
+        wandb.config.get("contrastive_loss", config.get("contrastive_loss", "triplet"))
+    )
+    temperature = float(
+        wandb.config.get("temperature", config.get("temperature", 0.07))
+    )
+    add_assignment_group = bool(
+        wandb.config.get("add_assignment_group", config.get("add_assignment_group", False))
+    )
+    relevance_definition = str(
+        wandb.config.get("relevance_def", config.get("relevance_def", "D"))
+    )
+    eval_every_epoch = bool(
+        wandb.config.get("eval_every_epoch", config.get("eval_every_epoch", False))
+    )
+    if relevance_definition not in {"D", "E"}:
+        raise ValueError("relevance_def must be 'D' or 'E'")
+    if contrastive_loss not in {"triplet", "infonce"}:
+        raise ValueError("contrastive_loss must be triplet or infonce")
+    if temperature <= 0:
+        raise ValueError("temperature must be positive")
     run_config = {
         **config,
+        "contrastive_loss": contrastive_loss,
+        "temperature": temperature,
+        "relevance_def": relevance_definition,
+        "eval_every_epoch": eval_every_epoch,
         "hidden_dim": hidden_dim,
         "dropout": dropout,
         "weight_decay": weight_decay,
         "triplet_weight": triplet_weight,
         "triplet_margin": triplet_margin,
+        "add_assignment_group": add_assignment_group,
     }
     run_name = run_name or build_run_name(run_config)
     knn_edges = int(config.get("knn_edges", knn_edges))
     knn_scope = str(config.get("knn_scope", knn_scope))
     context = get_shared_context(
-        subtype, [str(config["features"])], knn_edges, knn_scope
+        subtype,
+        [str(config["features"])],
+        knn_edges,
+        knn_scope,
+        add_assignment_group,
     )
     dataframe = context["dataframe"]
-    data = context["graphs"][(config["features"], knn_edges, knn_scope)]
+    data = context["graphs"][
+        (config["features"], knn_edges, knn_scope, add_assignment_group)
+    ]
     train_indices = context["train_indices"]
     test_indices = context["test_indices"]
     input_dim = data["incident"].x.size(1)
@@ -378,46 +463,116 @@ def run_one(
         entity_embed_dim=int(config["entity_embed_dim"]),
     )
     run_started = time.perf_counter()
-    model, history = train_minibatch(
-        model,
-        data,
-        context["masks"]["train_mask"],
-        context["masks"]["val_mask"],
-        epochs=epochs,
-        lr=float(config["lr"]),
-        weight_decay=weight_decay,
-        batch_size=BATCH_SIZE,
-        num_neighbors=NUM_NEIGHBORS,
-        device=str(context["device"]),
-        patience=patience,
-        triplet_weight=triplet_weight,
-        triplet_margin=triplet_margin,
-    )
-    for epoch, (train_loss, val_loss, val_acc) in enumerate(
-        zip(history["train_loss"], history["val_loss"], history["val_acc"]), start=1
-    ):
-        wandb.log(
-            {"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss, "val_acc": val_acc},
-            step=epoch,
+    retrieval_history: list[dict[str, float | int]] = []
+    first_retrieval_eval_sec: float | None = None
+    full_loader = (
+        NeighborLoader(
+            data,
+            num_neighbors=NUM_NEIGHBORS,
+            input_nodes=("incident", torch.ones(len(dataframe), dtype=torch.bool)),
+            batch_size=BATCH_SIZE,
+            shuffle=False,
         )
-    full_loader = NeighborLoader(
-        data,
-        num_neighbors=NUM_NEIGHBORS,
-        input_nodes=("incident", torch.ones(len(dataframe), dtype=torch.bool)),
-        batch_size=BATCH_SIZE,
-        shuffle=False,
+        if eval_every_epoch
+        else None
     )
-    embeddings = extract_incident_embeddings(model, data, full_loader, str(context["device"])).numpy()
-    results: dict[str, dict[str, float]] = {}
-    for group_name, group_indices in (
-        ("seen", context["seen_test_indices"]),
-        ("unseen", context["unseen_test_indices"]),
-        ("all", test_indices),
-    ):
-        if len(group_indices) == 0:
-            continue
-        metrics = _evaluate_group(embeddings, dataframe, train_indices, group_indices)
-        results[group_name] = metrics
+    original_wandb_log = wandb.log
+
+    def log_with_epoch_retrieval(
+        payload: dict[str, object] | None = None,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        """Add retrieval metrics to each training epoch W&B log."""
+        nonlocal first_retrieval_eval_sec
+        if (
+            eval_every_epoch
+            and payload is not None
+            and "epoch" in payload
+            and "train_loss" in payload
+            and "val_loss" in payload
+        ):
+            started = time.perf_counter()
+            embeddings = extract_incident_embeddings(
+                model, data, full_loader, str(context["device"])
+            ).numpy()
+            epoch_results = _evaluate_retrieval_groups(
+                embeddings,
+                dataframe,
+                train_indices,
+                test_indices,
+                context["seen_test_indices"],
+                context["unseen_test_indices"],
+                relevance_definition,
+            )
+            elapsed = time.perf_counter() - started
+            if first_retrieval_eval_sec is None:
+                first_retrieval_eval_sec = elapsed
+                _LOGGER.info(
+                    "First per-epoch retrieval evaluation took %.3fs", elapsed
+                )
+            epoch = int(payload["epoch"])
+            retrieval_entry: dict[str, float | int] = {"epoch": epoch}
+            for group_name in ("seen", "unseen", "all"):
+                group_metrics = epoch_results.get(group_name, {})
+                retrieval_entry[f"{group_name}_ndcg1"] = group_metrics.get(
+                    "ndcg@1", 0.0
+                )
+                if group_name in {"seen", "unseen"}:
+                    retrieval_entry[f"{group_name}_mrr"] = group_metrics.get(
+                        "mrr", 0.0
+                    )
+                    retrieval_entry[f"{group_name}_map"] = group_metrics.get(
+                        "map", 0.0
+                    )
+            retrieval_history.append(retrieval_entry)
+            payload = {**payload, **retrieval_entry}
+        original_wandb_log(payload, *args, **kwargs)
+
+    if eval_every_epoch:
+        wandb.log = log_with_epoch_retrieval
+    try:
+        model, history = train_minibatch(
+            model,
+            data,
+            context["masks"]["train_mask"],
+            context["masks"]["val_mask"],
+            epochs=epochs,
+            lr=float(config["lr"]),
+            weight_decay=weight_decay,
+            batch_size=BATCH_SIZE,
+            num_neighbors=NUM_NEIGHBORS,
+            device=str(context["device"]),
+            patience=patience,
+            triplet_weight=triplet_weight,
+            triplet_margin=triplet_margin,
+            contrastive_loss=contrastive_loss,
+            temperature=temperature,
+        )
+    finally:
+        if eval_every_epoch:
+            wandb.log = original_wandb_log
+    if full_loader is None:
+        full_loader = NeighborLoader(
+            data,
+            num_neighbors=NUM_NEIGHBORS,
+            input_nodes=("incident", torch.ones(len(dataframe), dtype=torch.bool)),
+            batch_size=BATCH_SIZE,
+            shuffle=False,
+        )
+    embeddings = extract_incident_embeddings(
+        model, data, full_loader, str(context["device"])
+    ).numpy()
+    results = _evaluate_retrieval_groups(
+        embeddings,
+        dataframe,
+        train_indices,
+        test_indices,
+        context["seen_test_indices"],
+        context["unseen_test_indices"],
+        relevance_definition,
+    )
+    for group_name, metrics in results.items():
         for metric_name, metric_value in metrics.items():
             wandb.log({f"{group_name}/{metric_name}": metric_value})
     best_val_loss = min(history["val_loss"])
@@ -434,6 +589,7 @@ def run_one(
         "epochs_trained": len(history["train_loss"]),
         "stopped_early": history["stopped_early"],
         "seen_unseen_gap": _metric(results, "seen", "ndcg@1") - _metric(results, "unseen", "ndcg@1"),
+        "first_retrieval_eval_sec": first_retrieval_eval_sec,
         "run_duration_sec": time.perf_counter() - run_started,
     }
     for key, value in summary_values.items():
@@ -449,7 +605,9 @@ def run_one(
         "train_loss_history": history["train_loss"],
         "val_loss_history": history["val_loss"],
         "val_acc_history": history["val_acc"],
+        "retrieval_history": retrieval_history,
         "results": results,
+        "first_retrieval_eval_sec": first_retrieval_eval_sec,
         "run_duration_sec": summary_values["run_duration_sec"],
         "wandb_run_id": getattr(run, "id", None),
         "wandb_run_url": getattr(run, "url", None),
