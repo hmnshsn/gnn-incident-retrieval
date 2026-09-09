@@ -137,3 +137,4 @@ Persisted outside chat: write normal prose code, comments, commits, docs, issue/
 - GPUs: 2x A100-80GB. Use `CUDA_VISIBLE_DEVICES=0` for single-GPU runs.
 - wandb is configured at `~/.config/wandb/settings` (base_url = https://api.wandb.ai).
 - Smoke tests only: max 3 epochs. NEVER run full training or sweeps.
+- Do not push code.
