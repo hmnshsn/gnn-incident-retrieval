@@ -118,3 +118,62 @@ def compute_relevance_matrix(
         )
     relevance = relevance.astype(np.int8, copy=False)
     return sparse.csr_matrix(relevance, shape=(len(test), len(train)))
+
+
+def compute_relevance_matrix_e(
+    df: pd.DataFrame,
+    train_indices: Sequence[int],
+    test_indices: Sequence[int],
+    definition: str = "E",
+) -> sparse.csr_matrix:
+    """Compute Definition E relevance without closure-code gating.
+
+    Definition E assigns 3 to matching CI, 2 to matching CI subtype when CI
+    differs, 1 to matching category when both CI and subtype differ, and 0
+    otherwise. Null values never match.
+
+    Args:
+        df: Cleaned, time-sorted incident dataframe.
+        train_indices: Row positions used as retrieval candidates.
+        test_indices: Row positions used as retrieval queries.
+        definition: Must be ``"E"``; retained for signature compatibility.
+
+    Returns:
+        CSR matrix of shape ``(len(test_indices), len(train_indices))`` with
+        int8 relevance values.
+    """
+    if definition != "E":
+        raise ValueError("definition must be 'E'")
+    required = {"CI Name (aff)", "CI Subtype (aff)", "Category"}
+    missing = required - set(df.columns)
+    if missing:
+        raise KeyError(f"Missing required columns: {sorted(missing)}")
+
+    train = np.asarray(train_indices, dtype=int)
+    test = np.asarray(test_indices, dtype=int)
+    if train.ndim != 1 or test.ndim != 1:
+        raise ValueError("train_indices and test_indices must be one-dimensional")
+
+    train_values = df.iloc[train]
+    test_values = df.iloc[test]
+    comparisons = []
+    for column in ("CI Name (aff)", "CI Subtype (aff)", "Category"):
+        train_raw = train_values[column]
+        test_raw = test_values[column]
+        train_valid = ~train_raw.isna().to_numpy()
+        test_valid = ~test_raw.isna().to_numpy()
+        train_strings = train_raw.astype("string").fillna("<missing>").to_numpy()
+        test_strings = test_raw.astype("string").fillna("<missing>").to_numpy()
+        comparisons.append(
+            test_valid[:, None]
+            & train_valid[None, :]
+            & (test_strings[:, None] == train_strings[None, :])
+        )
+
+    same_ci, same_subtype, same_category = comparisons
+    relevance = np.where(
+        same_ci,
+        3,
+        np.where(same_subtype, 2, np.where(same_category, 1, 0)),
+    ).astype(np.int8, copy=False)
+    return sparse.csr_matrix(relevance, shape=(len(test), len(train)))
